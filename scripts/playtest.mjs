@@ -1,5 +1,7 @@
 // Runs many AI-only games and prints who wins and how long games last.
-// A quick balance check, not a substitute for playing. Usage: npm run playtest [-- games]
+// A quick balance check, not a substitute for playing.
+// Usage: npm run playtest [-- games [dice-set]]   e.g. npm run playtest -- 600 fresh
+// Different dice-set names give different dice, so a result can be checked on new seeds.
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -11,6 +13,7 @@ require('../src/ai.js');
 
 const FS = globalThis.FS;
 const games = Number(process.argv[2] || 300);
+const diceSet = process.argv[3] || 'playtest';
 const wins = { ga: 0, china: 0, russia: 0, draw: 0 };
 const reasons = {};
 const byTemperament = {};
@@ -18,7 +21,7 @@ let rounds = 0;
 let eliminations = 0;
 
 for (let g = 0; g < games; g++) {
-  let state = FS.engine.newGame({ seed: 'playtest-' + g, controllers: { ga: 'ai', china: 'ai', russia: 'ai' } });
+  let state = FS.engine.newGame({ seed: diceSet + '-' + g, controllers: { ga: 'ai', china: 'ai', russia: 'ai' } });
   while (!state.winner) {
     const orders = {};
     for (const p of FS.POWERS) if (!state.eliminated[p]) orders[p] = FS.ai.planOrders(state, p);

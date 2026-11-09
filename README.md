@@ -48,8 +48,14 @@ npm run build       # single-file build in dist/
 ## Balance notes (AI vs AI, current numbers)
 
 Starting position: each power earns 13 points a turn. Russia holds continental Europe and Central
-Asia; China holds Mongolia, South Asia and Southeast Asia. In AI-only games Greater America
-wins about 63%, China 30%, Russia 6%. Most of that gap is the computer players: Russia's AI hoards
-huge stacks on its Chinese border instead of using them, and Russia and China fight each other
-while Greater America takes Britain and Western Europe. Treat these as a smoke test until humans
-have played it.
+Asia; China holds Mongolia, South Asia and Southeast Asia. Tuned with all-computer games until the
+three came out even: over 600 games, Greater America 36%, China 32%, Russia 31%, draws 2%.
+
+What mattered: Greater America's edge was structural, not economic. It could ship troops straight
+across the North Atlantic into Britain and Western Europe, which Russia barely defended. Cutting its
+income or raising its unit costs changed almost nothing. Stronger garrisons in Britain, Western
+Europe and Brazil, a second Russian Baltic fleet, and a stronger Chinese start in Southeast Asia
+evened it out. The computer players also no longer leave huge stacks idle on a quiet border.
+
+These numbers come from simple computer players, so they show the board isn't lopsided. They don't
+prove it's balanced for humans. Rerun with `npm run playtest -- 600 <any-name>` after changes.

@@ -35,7 +35,10 @@
       let t = 0;
       for (const n of geo.landNeighbors(r)) {
         const c = state.land[n];
-        if (c.owner !== power && c.owner !== 'neutral') t += c.inf * E.unitValue(c.owner, 'inf', 'att');
+        if (c.owner === power || c.owner === 'neutral') continue;
+        // An enemy stack next to several of our regions can only hit one of them with its full weight.
+        const fronts = geo.landNeighbors(n).filter((x) => state.land[x].owner === power).length || 1;
+        t += (c.inf * E.unitValue(c.owner, 'inf', 'att')) / Math.sqrt(fronts);
       }
       for (const z of geo.seasOf(r)) {
         for (const p of FS.POWERS) {
@@ -61,6 +64,8 @@
       const myDef = Math.min(R.maxHitValue, E.unitValue(power, 'inf', 'def') + (MAP.land[id].home === power ? R.powers[power].homeDefenseBonus : 0));
       let need = Math.ceil((threat(id) * temper.homeGuard) / myDef);
       if (MAP.land[id].capital === power) need = Math.max(need, 1);
+      // A very large stack never sits entirely idle: at most half of it stays on guard.
+      if (state.land[id].inf >= 12) need = Math.min(need, Math.ceil(state.land[id].inf / 2));
       free[id] = state.land[id].inf - Math.min(state.land[id].inf, need);
     }
 
