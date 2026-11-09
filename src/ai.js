@@ -211,11 +211,12 @@
     const builds = {};
     // Coasts on a sea zone where we have fleets and something to invade are staging areas.
     const staging = (id) => geo.seasOf(id).some((z) => state.sea[z].fleets[power] > 0 && unownedCoasts(z) > 0);
+    // Danger matters, but capped, so a quiet region next to a juicy target still gets reinforcements.
     const landScore = (id) =>
-      threat(id) +
+      Math.min(threat(id) * 0.5, 8) +
       (geo.landNeighbors(id).some((x) => !isMine(x)) ? 3 : 0) +
       (staging(id) ? 3 : 0) +
-      (geo.landNeighbors(id).some((x) => !isMine(x) && MAP.land[x].objective) ? 3 : 0) +
+      (geo.landNeighbors(id).some((x) => !isMine(x) && MAP.land[x].objective) ? 5 : 0) +
       (MAP.land[id].capital === power ? 1 : 0);
     for (let i = 0; i < 40 && points >= cheapest; i++) {
       let unit = prefs[i % prefs.length];
@@ -241,7 +242,9 @@
       }
       const landSpots = E.buildSpots(state, power, unit);
       if (!landSpots.length) break;
-      const at = landSpots.slice().sort((a, b) => landScore(b) - landScore(a))[0];
+      // Each unit already placed somewhere makes that spot a little less attractive, so builds spread out.
+      const placed = (id) => Object.keys(builds).filter((k) => k.endsWith('|' + id)).reduce((n, k) => n + builds[k], 0);
+      const at = landSpots.slice().sort((a, b) => landScore(b) - placed(b) * 2 - (landScore(a) - placed(a) * 2))[0];
       const key = unit + '|' + at;
       builds[key] = (builds[key] || 0) + 1;
       points -= costs[unit].cost;
@@ -261,7 +264,10 @@
     const queue = [];
     for (const id of Object.keys(state.land)) {
       if (state.land[id].owner !== power) continue;
-      const front = geo.landNeighbors(id).some((n) => state.land[n].owner !== power) || geo.isCoastal(id);
+      // The front: next to something we don't hold, or a coast where our fleets can carry troops out.
+      const front =
+        geo.landNeighbors(id).some((n) => state.land[n].owner !== power) ||
+        geo.seasOf(id).some((z) => state.sea[z].fleets[power] > 0);
       if (front) { dist[id] = 0; queue.push(id); }
     }
     while (queue.length) {

@@ -21,8 +21,8 @@
     // Neutral garrisons defend at this value and never move.
     neutralDefense: 2,
 
-    defaultObjectivesToWin: 5,
-    defaultRoundLimit: 12,
+    defaultObjectivesToWin: 7,
+    defaultRoundLimit: 15,
 
     unitNames: { inf: 'Infantry', fleet: 'Fleet', air: 'Air wing' },
 

@@ -163,3 +163,11 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .back { align-self: flex-start; }
 .reach-title { font-size: 13px; margin-bottom: 4px; }
 .reach { margin: 0 0 6px; padding-left: 18px; font-size: 13px; }
+
+/* ---- Ghost markers where the board wraps ---- */
+.ghost-body { fill: #1d355055; stroke: var(--sea-line); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.ghost-label { fill: #a9c4e6; font-size: 16px; text-anchor: middle; }
+.ghost-name { fill: #a9c4e6; font-size: 11px; text-anchor: middle; paint-order: stroke; stroke: #11151d; stroke-width: 4px; }
+.ghost-fleets { font-size: 10px; font-weight: 700; text-anchor: middle; }
+.income-line { font-size: 13px; color: var(--muted); }
+.income-line b { color: var(--text); }

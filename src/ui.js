@@ -87,6 +87,17 @@
     };
   }
 
+  const GHOST_R = 26;
+
+  // Where to draw a link or arrow leg between two spaces. If the link wraps around the
+  // board edge, the sea zone end is drawn at its ghost marker instead.
+  function legEnds(a, b) {
+    const sea = geo.wrappedSea(a, b);
+    const at = (id) => (id === sea ? MAP.ghosts[sea] : pos(id));
+    const r = (id) => (id === sea ? GHOST_R : radius(id));
+    return { pa: at(a), pb: at(b), ra: r(a), rb: r(b) };
+  }
+
   function arrowSvg(o, power) {
     const off = (FS.POWERS.indexOf(power) - 1) * 5;
     const cls = 'arrow arrow-' + (o.kind === 'air' ? 'air' : o.unit === 'fleet' ? 'fleet' : 'inf');
@@ -101,7 +112,8 @@
     legs.forEach(([a, b], i) => {
       const last = i === legs.length - 1;
       const first = i === 0;
-      const s = shorten(pos(a), pos(b), first ? radius(a) + 2 : 0, last ? radius(b) + 6 : 0);
+      const e = legEnds(a, b);
+      const s = shorten(e.pa, e.pb, first ? e.ra + 2 : 0, last ? e.rb + 6 : 0);
       out += `<line class="${cls}" x1="${s.x1 + s.nx * off}" y1="${s.y1 + s.ny * off}" x2="${s.x2 + s.nx * off}" y2="${s.y2 + s.ny * off}" stroke="${stroke}"${last ? ` marker-end="url(#arrow-${power})"` : ''}/>`;
       if (last) {
         const mx = (s.x1 + s.x2) / 2 + s.nx * (off + 10);
@@ -136,15 +148,31 @@
     }
     parts.push('</defs>');
 
-    for (const z of Object.keys(MAP.sea)) {
-      for (const c of MAP.sea[z].coasts) {
-        const a = MAP.sea[z];
-        const b = MAP.land[c];
-        parts.push(`<line class="link-coast" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`);
-      }
-    }
-    for (const [a, b] of MAP.seaLinks) {
-      parts.push(`<line class="link-sea" x1="${MAP.sea[a].x}" y1="${MAP.sea[a].y}" x2="${MAP.sea[b].x}" y2="${MAP.sea[b].y}"/>`);
+    const link = (cls, a, b) => {
+      const e = legEnds(a, b);
+      return `<line class="${cls}" x1="${e.pa.x}" y1="${e.pa.y}" x2="${e.pb.x}" y2="${e.pb.y}"/>`;
+    };
+    for (const z of Object.keys(MAP.sea)) for (const c of MAP.sea[z].coasts) parts.push(link('link-coast', z, c));
+    for (const [a, b] of MAP.seaLinks) parts.push(link('link-sea', a, b));
+
+    // Ghost markers: the Atlantic zones again on the right-hand edge, where the board wraps.
+    for (const z of Object.keys(MAP.ghosts)) {
+      const gh = MAP.ghosts[z];
+      const fleets = FS.POWERS.filter((p) => s.sea[z].fleets[p] > 0).map((p) => `<tspan fill="${color(p)}">${R.powers[p].short} ${s.sea[z].fleets[p]}</tspan>`).join(' ');
+      const cls = ['space', 'ghost'];
+      if (highlight.has(z)) cls.push('is-highlight');
+      if (targets.has(z)) cls.push('is-target');
+      if (opts.selected === z) cls.push('is-selected');
+      parts.push(
+        `<g class="${cls.join(' ')}" data-space="${z}" role="button" aria-label="${esc(MAP.sea[z].name)} (continued from the left edge)">` +
+          `<title>${esc(MAP.sea[z].name)}: the same sea zone as on the left edge of the board.</title>` +
+          `<circle class="ring" cx="${gh.x}" cy="${gh.y}" r="${GHOST_R + 6}"/>` +
+          `<circle class="ghost-body" cx="${gh.x}" cy="${gh.y}" r="${GHOST_R}"/>` +
+          `<text class="ghost-label" x="${gh.x}" y="${gh.y - 4}">⇄</text>` +
+          `<text class="ghost-name" x="${gh.x}" y="${gh.y + GHOST_R + 14}">${esc(gh.label)}</text>` +
+          (fleets ? `<text class="ghost-fleets" x="${gh.x}" y="${gh.y + 14}">${fleets}</text>` : '') +
+          `</g>`
+      );
     }
     for (const [a, b] of MAP.landLinks) {
       parts.push(`<line class="link-land" x1="${MAP.land[a].x}" y1="${MAP.land[a].y}" x2="${MAP.land[b].x}" y2="${MAP.land[b].y}"/>`);
@@ -207,6 +235,7 @@
 
     for (const a of opts.arrows || []) parts.push(arrowSvg(a.order, a.power));
 
+    $('map').setAttribute('viewBox', '0 0 ' + MAP.width + ' ' + MAP.height);
     $('map').innerHTML = parts.join('');
   }
 
@@ -229,7 +258,7 @@
     const need = g.settings.objectivesToWin;
     const cells = FS.POWERS.map((p) => {
       const out = g.eliminated[p] ? ' out' : '';
-      return `<span class="status-power${out}" style="--pc:${color(p)}"><b>${R.powers[p].short}</b> ${E.objectivesHeld(g, p).length}/${need} obj · ${g.points[p]} pts</span>`;
+      return `<span class="status-power${out}" style="--pc:${color(p)}" title="${esc(pname(p))}: ${E.landOwnedBy(g, p).length} regions, earning ${E.income(g, p)} points a turn"><b>${R.powers[p].short}</b> ${E.objectivesHeld(g, p).length}/${need} obj · ${E.landOwnedBy(g, p).length} regions · +${E.income(g, p)}/turn</span>`;
     });
     const round = g.winner && g.lastTurn ? g.lastTurn.round : g.round;
     const label = app.screen === 'reveal' ? 'Round ' + round + ' · resolving' : 'Round ' + round + ' of ' + g.settings.roundLimit;
@@ -269,11 +298,11 @@
           <p class="hint">Two or three humans? You’ll pass the device between turns; each command writes its orders in private.</p>
         </fieldset>
         <fieldset class="setup-grid"><legend>Rules to test</legend>
-          <label>Objectives to win <input type="number" name="objectives" min="2" max="8" value="${R.defaultObjectivesToWin}"></label>
+          <label>Objectives to win <input type="number" name="objectives" min="2" max="${geo.objectives().length}" value="${R.defaultObjectivesToWin}"></label>
           <label>Round limit <input type="number" name="rounds" min="2" max="40" value="${R.defaultRoundLimit}"></label>
           <label>Seed <input type="text" name="seed" value="${Math.floor(Math.random() * 1e6)}"></label>
         </fieldset>
-        <p class="hint">8 objectives on this map: the three capitals plus Mongolia, Korea, Japan, Taiwan and the Philippines. Win by holding the target number at the end of a round, or have the most when the round limit is reached.</p>
+        <p class="hint">${geo.objectives().length} objectives on this map: ${esc(geo.objectives().map((id) => MAP.land[id].label).join(', '))}. Win by holding the target number at the end of a round, or have the most when the round limit is reached. Every region you hold adds its value to your income each turn, so the more you take, the more you can build.</p>
         <div class="actions">
           ${saved ? `<button type="button" class="ghost" data-action="resume">Resume saved game (round ${saved.round})</button>` : ''}
           <button type="submit" class="primary">Start the war</button>
@@ -286,7 +315,7 @@
       for (const p of FS.POWERS) controllers[p] = f.get('ctl-' + p);
       startGame({
         controllers,
-        objectivesToWin: clamp(Number(f.get('objectives')), 2, 8, R.defaultObjectivesToWin),
+        objectivesToWin: clamp(Number(f.get('objectives')), 2, geo.objectives().length, R.defaultObjectivesToWin),
         roundLimit: clamp(Number(f.get('rounds')), 2, 40, R.defaultRoundLimit),
         seed: String(f.get('seed') || Date.now()),
       });
@@ -497,6 +526,7 @@
         <div><b>${totals.fleet}</b><span>fleets</span></div>
         <div><b>${rem.points}</b><span>points to spend</span></div>
       </section>
+      <p class="income-line">You hold <b>${myLand.length} regions</b>, earning <b>${E.income(g, p)} points a turn</b>. Every region you take adds its value (1–3) to that.</p>
       <details class="howto"${app.game.round === 1 ? ' open' : ''}>
         <summary>How to give orders</summary>
         <ol>
