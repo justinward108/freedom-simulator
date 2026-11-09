@@ -112,7 +112,18 @@
     return out;
   }
 
-  // opts: { state, highlight: Set, targets: Set, selected, arrows: [{order, power}] }
+  // Hover text for a space: who holds it and exactly what is there.
+  function tooltip(s, id) {
+    if (geo.isSea(id)) {
+      const fleets = FS.POWERS.filter((p) => s.sea[id].fleets[p] > 0).map((p) => pname(p) + ': ' + s.sea[id].fleets[p] + ' fleet' + (s.sea[id].fleets[p] > 1 ? 's' : ''));
+      return MAP.sea[id].name + ' (sea zone)\n' + (fleets.length ? fleets.join('\n') : 'No fleets');
+    }
+    const c = s.land[id];
+    const who = c.owner === 'neutral' ? 'Neutral' : pname(c.owner);
+    return MAP.land[id].name + ' — ' + who + '\n' + c.inf + ' infantry' + (c.air ? ', ' + c.air + ' air wing' + (c.air > 1 ? 's' : '') : '') + '\nWorth ' + MAP.land[id].value + ' pts/turn' + (MAP.land[id].objective ? ' · objective' : '');
+  }
+
+  // opts: { state, highlight: Set, targets: Set, selected, mine: power, arrows: [{order, power}] }
   function renderMap(opts) {
     const s = opts.state;
     const highlight = opts.highlight || new Set();
@@ -145,6 +156,7 @@
       if (highlight.has(z)) cls.push('is-highlight');
       if (targets.has(z)) cls.push('is-target');
       if (opts.selected === z) cls.push('is-selected');
+      if (opts.mine && s.sea[z].fleets[opts.mine] > 0) cls.push('is-mine');
       const present = FS.POWERS.filter((p) => s.sea[z].fleets[p] > 0);
       const chipW = 34;
       const startX = n.x - (present.length * chipW) / 2;
@@ -157,10 +169,12 @@
       const owner = E.soleFleetPower(s.sea[z]);
       parts.push(
         `<g class="${cls.join(' ')}" data-space="${z}" tabindex="0" role="button" aria-label="${esc(n.name)}">` +
+          `<title>${esc(tooltip(s, z))}</title>` +
+          `<circle class="mine-ring" cx="${n.x}" cy="${n.y}" r="${radius(z) + 4}"${opts.mine ? ` style="--mc:${color(opts.mine)}"` : ''}/>` +
           `<circle class="ring" cx="${n.x}" cy="${n.y}" r="${radius(z) + 7}"/>` +
           `<circle class="sea-body" cx="${n.x}" cy="${n.y}" r="${radius(z)}"${owner ? ` stroke="${color(owner)}"` : ''}/>` +
           `<text class="sea-label" x="${n.x}" y="${n.y - 12}">${esc(n.label)}</text>` +
-          (present.length ? chips : `<text class="sea-empty" x="${n.x}" y="${n.y + 16}">no fleets</text>`) +
+          (present.length ? chips + `<text class="sea-caption" x="${n.x}" y="${n.y + 34}">fleets</text>` : `<text class="sea-empty" x="${n.x}" y="${n.y + 16}">no fleets</text>`) +
           `</g>`
       );
     }
@@ -173,13 +187,17 @@
       if (highlight.has(id)) cls.push('is-highlight');
       if (targets.has(id)) cls.push('is-target');
       if (opts.selected === id) cls.push('is-selected');
+      if (opts.mine && c.owner === opts.mine) cls.push('is-mine');
       let g = `<g class="${cls.join(' ')}" data-space="${id}" tabindex="0" role="button" aria-label="${esc(n.name)}">`;
+      g += `<title>${esc(tooltip(s, id))}</title>`;
+      g += `<circle class="mine-ring" cx="${n.x}" cy="${n.y}" r="${r + 10}"${opts.mine ? ` style="--mc:${color(opts.mine)}"` : ''}/>`;
       g += `<circle class="ring" cx="${n.x}" cy="${n.y}" r="${r + 7}"/>`;
       if (n.objective) g += `<circle class="objective-ring" cx="${n.x}" cy="${n.y}" r="${r + 4}"/>`;
       g += `<circle class="land-body" cx="${n.x}" cy="${n.y}" r="${r}" fill="${color(c.owner)}"/>`;
-      g += `<text class="inf-count" x="${n.x}" y="${n.y + 6}">${c.inf}</text>`;
+      g += `<text class="inf-count" x="${n.x}" y="${n.y + 3}">${c.inf}</text>`;
+      g += `<text class="inf-caption" x="${n.x}" y="${n.y + 15}">inf</text>`;
       if (c.air > 0) {
-        g += `<g class="air-badge"><rect x="${n.x + r - 14}" y="${n.y - r - 6}" width="30" height="18" rx="9"/><text x="${n.x + r + 1}" y="${n.y - r + 7}">✈${c.air}</text></g>`;
+        g += `<g class="air-badge"><rect x="${n.x + r - 16}" y="${n.y - r - 7}" width="36" height="18" rx="9"/><text x="${n.x + r + 2}" y="${n.y - r + 6}">✈ ${c.air}</text></g>`;
       }
       if (n.capital) g += `<text class="capital-star" x="${n.x - r + 2}" y="${n.y - r + 8}">★</text>`;
       g += `<text class="land-label" x="${n.x}" y="${n.y + r + 18}">${esc(n.label)}</text>`;
@@ -196,7 +214,8 @@
     const items = FS.POWERS.map((p) => `<span class="legend-item"><i style="background:${color(p)}"></i>${esc(pname(p))}</span>`);
     items.push(`<span class="legend-item"><i style="background:${color('neutral')}"></i>Neutral</span>`);
     items.push('<span class="legend-item"><i class="legend-objective"></i>Objective</span>');
-    items.push('<span class="legend-item">★ Capital · number = infantry · ✈ = air wings</span>');
+    items.push('<span class="legend-item">★ Capital · number = infantry · ✈ = air wings · coloured chips at sea = fleets</span>');
+    items.push('<span class="legend-item"><i class="legend-mine"></i>Yours (while giving orders)</span>');
     $('legend').innerHTML = items.join('');
   }
 
@@ -449,6 +468,102 @@
     return `<h3 style="color:${color(c.owner)}">${esc(n.name)}</h3><p class="meta">${esc(c.owner === 'neutral' ? 'Neutral' : pname(c.owner))} · ${tags.join(' · ')}</p><p>${c.inf} infantry${c.air ? ' · ' + c.air + ' air wing' + (c.air > 1 ? 's' : '') : ''}</p>`;
   }
 
+  function unitCount(n, one, many) {
+    return n + ' ' + (n === 1 ? one : many);
+  }
+
+  // Unique list of place names, joined for a sentence.
+  function nameList(ids) {
+    const seen = [];
+    for (const id of ids) if (!seen.includes(id)) seen.push(id);
+    return seen.map((id) => (geo.isLand(id) ? MAP.land[id].label : MAP.sea[id].label)).join(', ');
+  }
+
+  // The overview shown when nothing is selected: totals, then every place you have units.
+  function forcesOverview(rem) {
+    const g = app.game;
+    const p = app.current;
+    const myLand = E.landOwnedBy(g, p);
+    const mySeas = Object.keys(g.sea).filter((z) => g.sea[z].fleets[p] > 0);
+    const totals = {
+      inf: myLand.reduce((n, id) => n + g.land[id].inf, 0),
+      air: myLand.reduce((n, id) => n + g.land[id].air, 0),
+      fleet: mySeas.reduce((n, z) => n + g.sea[z].fleets[p], 0),
+    };
+    let html = `
+      <section class="totals">
+        <div><b>${totals.inf}</b><span>infantry</span></div>
+        <div><b>${totals.air}</b><span>air wings</span></div>
+        <div><b>${totals.fleet}</b><span>fleets</span></div>
+        <div><b>${rem.points}</b><span>points to spend</span></div>
+      </section>
+      <details class="howto"${app.game.round === 1 ? ' open' : ''}>
+        <summary>How to give orders</summary>
+        <ol>
+          <li>Pick one of your places below, or click it on the map. Your places have a coloured outline.</li>
+          <li>Choose what its units do: <b>infantry</b> move or attack, <b>air wings</b> patrol over a battle to add firepower, <b>fleets</b> sail or stay to carry infantry, and any place can <b>build</b> new units with points.</li>
+          <li>Press <b>Lock in</b> when you’re done. Anything without orders stays where it is and defends.</li>
+        </ol>
+      </details>
+      <section class="forces"><h4>Your forces</h4>`;
+
+    for (const id of myLand) {
+      const c = g.land[id];
+      const free = rem.land[id];
+      const enemyTargets = E.infTargets(g, p, id).filter((t) => g.land[t.to].owner !== p).map((t) => t.to);
+      const parts = [unitCount(c.inf, 'infantry', 'infantry')];
+      if (c.air) parts.push(unitCount(c.air, 'air wing', 'air wings'));
+      const ordered = c.inf - free.inf + (c.air - free.air);
+      let can;
+      if (c.inf === 0 && c.air === 0) can = 'Empty. You can build here.';
+      else if (enemyTargets.length) can = 'Can attack: ' + nameList(enemyTargets);
+      else can = 'Nothing to attack from here. Move toward the front, or hold.';
+      html += `<button class="force-row" data-action="select" data-space="${id}" style="--pc:${color(p)}">
+        <span class="force-name">${esc(MAP.land[id].label)}${MAP.land[id].capital === p ? ' ★' : ''}</span>
+        <span class="force-units">${esc(parts.join(' · '))}${ordered > 0 ? ` <em>(${ordered} ordered)</em>` : ''}</span>
+        <span class="force-can">${esc(can)}</span>
+      </button>`;
+    }
+    for (const z of mySeas) {
+      const n = g.sea[z].fleets[p];
+      const coasts = MAP.sea[z].coasts.filter((c) => g.land[c].owner === p);
+      const can = 'Can sail to: ' + nameList(E.fleetTargets(g, p, z)) + (coasts.length ? '. If they stay, they carry up to ' + n * R.transportCapacity + ' infantry from ' + nameList(coasts) + '.' : '.');
+      html += `<button class="force-row" data-action="select" data-space="${z}" style="--pc:${color(p)}">
+        <span class="force-name">${esc(MAP.sea[z].name)}</span>
+        <span class="force-units">${unitCount(n, 'fleet', 'fleets')}${n - rem.sea[z] > 0 ? ` <em>(${n - rem.sea[z]} ordered)</em>` : ''}</span>
+        <span class="force-can">${esc(can)}</span>
+      </button>`;
+    }
+    html += '</section>';
+    return html;
+  }
+
+  // For a place you don't hold: which of your units could reach it this turn.
+  function reachableFrom(id) {
+    const g = app.game;
+    const p = app.current;
+    const lines = [];
+    if (geo.isLand(id)) {
+      for (const from of E.landOwnedBy(g, p)) {
+        if (!g.land[from].inf) continue;
+        const ways = E.infTargets(g, p, from).filter((t) => t.to === id);
+        for (const w of ways) lines.push(MAP.land[from].label + ' (' + g.land[from].inf + ' infantry' + (w.via ? ', by sea across the ' + MAP.sea[w.via].label : '') + ')');
+        if (g.land[from].air && E.airTargets(g, p, from, 'patrol').includes(id)) lines.push(MAP.land[from].label + ' (' + unitCount(g.land[from].air, 'air wing', 'air wings') + ' can patrol over it)');
+      }
+    } else {
+      for (const z of Object.keys(g.sea)) if (g.sea[z].fleets[p] > 0 && E.fleetTargets(g, p, z).includes(id)) lines.push(MAP.sea[z].name + ' (' + unitCount(g.sea[z].fleets[p], 'fleet', 'fleets') + ')');
+    }
+    if (!lines.length) {
+      let tip = '';
+      if (geo.isLand(id) && geo.isCoastal(id)) {
+        const seas = geo.seasOf(id).filter((z) => MAP.sea[z].coasts.some((c) => c !== id && g.land[c].owner === p));
+        if (seas.length) tip = ' To land here, first get a fleet into the ' + seas.map((z) => MAP.sea[z].name).join(' or the ') + '. A fleet that stays there next turn can carry infantry from your coast on that sea.';
+      }
+      return `<p class="hint">None of your units can reach it this turn.${esc(tip)}</p>`;
+    }
+    return `<p class="reach-title">Your units that can reach it:</p><ul class="reach">${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul><p class="hint">Select one of those to give the order.</p>`;
+  }
+
   function renderOrdersPanel() {
     const g = app.game;
     const p = app.current;
@@ -465,54 +580,69 @@
 
     const id = app.selected;
     if (!id) {
-      html += '<p class="hint">Select one of your regions or sea zones on the map to give it orders. Units without orders hold. Select any other space to inspect it.</p>';
+      html += forcesOverview(rem);
     } else {
+      html += `<button class="ghost small back" data-action="deselect">← All your forces</button>`;
       html += `<section class="selected">${spaceInfo(id)}`;
       if (geo.isLand(id) && g.land[id].owner === p) {
         const free = rem.land[id];
         if (free.inf > 0) {
-          html += `<div class="order-form" data-form="inf"><h4>Infantry · ${free.inf} free</h4>
-            <div class="form-row">${countInput(free.inf)} to ${selectHtml('dest', targetOptions(p, id))}</div>
+          html += `<div class="order-form" data-form="inf"><h4>Move or attack with infantry · ${free.inf} free</h4>
+            <p class="explain">Send them into a neighbouring region. If you hold it, they reinforce it. If anyone else holds it, it’s an attack. Regions across water need one of your fleets in that sea zone.</p>
+            <div class="form-row">Send ${countInput(free.inf)} to ${selectHtml('dest', targetOptions(p, id))}</div>
             <button class="primary small" data-action="add-inf">Order move</button></div>`;
+        } else if (g.land[id].inf > 0) {
+          html += '<p class="hint">All infantry here already have orders.</p>';
         }
         if (free.air > 0) {
           const patrol = E.airTargets(g, p, id, 'patrol').map((t) => ({ value: t, label: geo.spaceName(t) + (t === id ? ' (stay over home)' : '') }));
           const rebase = E.airTargets(g, p, id, 'rebase').map((t) => ({ value: t, label: MAP.land[t].label }));
           html += `<div class="order-form" data-form="air-patrol"><h4>Air wings · ${free.air} free</h4>
-            <div class="form-row">${countInput(free.air)} patrol over ${selectHtml('dest', patrol)}</div>
+            <p class="explain"><b>Patrol</b> over a place where there will be a battle: if you win the sky there, they add firepower in the first round. They fly home after. Air wings left at home help defend it.</p>
+            <div class="form-row">Send ${countInput(free.air)} to patrol over ${selectHtml('dest', patrol)}</div>
             <button class="primary small" data-action="add-air" data-mode="patrol">Order patrol</button></div>`;
           if (rebase.length) {
             html += `<div class="order-form" data-form="air-rebase">
-              <div class="form-row">${countInput(free.air)} rebase to ${selectHtml('dest', rebase)}</div>
+              <p class="explain"><b>Rebase</b> moves air wings to another of your regions for good, to get them nearer the fighting.</p>
+              <div class="form-row">Move ${countInput(free.air)} to ${selectHtml('dest', rebase)}</div>
               <button class="ghost small" data-action="add-air" data-mode="rebase">Order rebase</button></div>`;
           }
         }
-        html += `<div class="order-form"><h4>Build here (appears end of turn)</h4><div class="form-row">
-          <button class="ghost small" data-action="build" data-unit="inf" data-at="${id}"${costs.inf.cost > rem.points ? ' disabled' : ''}>+ Infantry · ${costs.inf.cost}</button>
-          <button class="ghost small" data-action="build" data-unit="air" data-at="${id}"${costs.air.cost > rem.points ? ' disabled' : ''}>+ Air wing · ${costs.air.cost}</button>
+        html += `<div class="order-form"><h4>Build here · ${rem.points} pts left</h4>
+          <p class="explain">New units appear at the end of the turn, so they can act next turn.</p>
+          <div class="form-row">
+          <button class="ghost small" data-action="build" data-unit="inf" data-at="${id}"${costs.inf.cost > rem.points ? ' disabled' : ''}>+ Infantry · ${costs.inf.cost} pts</button>
+          <button class="ghost small" data-action="build" data-unit="air" data-at="${id}"${costs.air.cost > rem.points ? ' disabled' : ''}>+ Air wing · ${costs.air.cost} pts</button>
         </div></div>`;
       } else if (geo.isSea(id)) {
         const free = rem.sea[id];
         if (free > 0) {
           const opts = E.fleetTargets(g, p, id).map((z) => ({ value: z, label: MAP.sea[z].name }));
           html += `<div class="order-form" data-form="fleet"><h4>Your fleets · ${free} free</h4>
-            <div class="form-row">${countInput(free)} to ${selectHtml('dest', opts)}</div>
-            <button class="primary small" data-action="add-fleet">Order move</button>
-            <p class="hint">Fleets that stay carry 2 infantry each across this zone.</p></div>`;
+            <p class="explain">Sail to a neighbouring sea zone, fighting any enemy fleets there. Or give no order: fleets that stay hold this zone and can carry 2 infantry each to any coast it touches.</p>
+            <div class="form-row">Send ${countInput(free)} to ${selectHtml('dest', opts)}</div>
+            <button class="primary small" data-action="add-fleet">Order move</button></div>`;
+        } else if (g.sea[id].fleets[p] > 0) {
+          html += '<p class="hint">All your fleets here already have orders.</p>';
+        } else {
+          html += reachableFrom(id);
         }
         if (E.buildSpots(g, p, 'fleet').includes(id)) {
-          html += `<div class="order-form"><h4>Build here (appears end of turn)</h4><div class="form-row">
-            <button class="ghost small" data-action="build" data-unit="fleet" data-at="${id}"${costs.fleet.cost > rem.points ? ' disabled' : ''}>+ Fleet · ${costs.fleet.cost}</button></div></div>`;
+          html += `<div class="order-form"><h4>Build here · ${rem.points} pts left</h4>
+            <p class="explain">New fleets appear at the end of the turn.</p>
+            <div class="form-row"><button class="ghost small" data-action="build" data-unit="fleet" data-at="${id}"${costs.fleet.cost > rem.points ? ' disabled' : ''}>+ Fleet · ${costs.fleet.cost} pts</button></div></div>`;
         }
+      } else {
+        html += reachableFrom(id);
       }
       html += '</section>';
     }
 
     const list = app.orders[p];
-    html += `<section class="order-list"><h4>Your orders (${list.length})</h4>`;
+    html += `<section class="order-list"><h4>Your orders this turn (${list.length})</h4>`;
     html += list.length
       ? '<ol>' + list.map((o, i) => `<li><span>${esc(E.describeOrder(o))}</span><button class="icon" data-action="remove-order" data-index="${i}" aria-label="Remove order">✕</button></li>`).join('') + '</ol>'
-      : '<p class="hint">No orders yet.</p>';
+      : '<p class="hint">No orders yet. Everything will stay put and defend.</p>';
     html += '</section>';
 
     const lockLabel = app.queue.length ? 'Lock in and pass on' : 'Lock in orders';
@@ -614,6 +744,7 @@
       renderMap({
         state: g,
         selected: app.selected,
+        mine: p,
         targets: selectionTargets(),
         arrows: app.orders[p].map((o) => ({ order: o, power: p })),
       });
@@ -645,6 +776,14 @@
         $('panel').innerHTML = '';
         renderStatus();
         return showSetup();
+      case 'select':
+        app.selected = el.dataset.space;
+        app.message = null;
+        return render();
+      case 'deselect':
+        app.selected = null;
+        app.message = null;
+        return render();
       case 'take-command':
         hideOverlay();
         app.screen = 'orders';

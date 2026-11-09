@@ -11,7 +11,7 @@ Design doc: [Freedom Simulator — Design Doc (draft)](https://claude.ai/artifac
 This is the first playable test of the core loop, not the real game. It answers one question:
 is a three-way simultaneous-orders war fun?
 
-- 14 land regions and 3 sea zones in a stylized Pacific theatre
+- 14 land regions and 3 sea zones on a schematic Pacific board (the finished game moves to a real-looking map)
 - Infantry, fleets and air wings; builds paid from a simple income (region values)
 - All resolution phases and collision rules from the design doc, with a step-by-step reveal
 - 1–3 humans on one device (pass it between commands), computer players fill the rest
