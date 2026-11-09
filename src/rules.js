@@ -7,7 +7,7 @@
   FS.POWERS = ['ga', 'china', 'russia'];
 
   FS.RULES = {
-    version: 1,
+    version: 2, // bump when the map or rules change, so old saved games are not loaded
 
     // A battle lasts at most this many rounds of fire in one turn.
     maxBattleRounds: 3,
