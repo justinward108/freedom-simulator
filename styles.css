@@ -45,7 +45,7 @@ p { margin: 0 0 10px; line-height: 1.45; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .legend-item i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-.legend-item i.legend-objective { border: 2px dashed var(--gold); background: transparent; }
+.legend-item i.legend-objective { border: 2px dashed #e8ecf2; background: transparent; }
 .disclaimer { font-size: 11px; color: #6c7280; margin-top: 6px; }
 
 @media (max-width: 900px) {
@@ -73,14 +73,14 @@ p { margin: 0 0 10px; line-height: 1.45; }
 .chip-text { fill: #fff; font-size: 13px; font-weight: 700; text-anchor: middle; }
 
 .land-body { stroke: #0008; stroke-width: 2; }
-.objective-ring { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 4 3; }
+.objective-ring { fill: none; stroke: #e8ecf2; stroke-width: 2; stroke-dasharray: 3 3; opacity: 0.85; }
 .inf-count { fill: #fff; font-size: 17px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: #0007; stroke-width: 3px; }
 .inf-caption { fill: #ffffffcc; font-size: 9px; font-weight: 700; text-anchor: middle; letter-spacing: 0.08em; text-transform: uppercase; paint-order: stroke; stroke: #0006; stroke-width: 2px; }
 .mine-ring { fill: none; stroke: transparent; stroke-width: 0; }
 .space.is-mine .mine-ring { stroke: var(--mc); stroke-width: 3; stroke-opacity: 0.6; }
 .legend-item i.legend-mine { background: transparent; border: 3px solid #ffffff66; }
 .land-label { fill: var(--text); font-size: 12.5px; text-anchor: middle; paint-order: stroke; stroke: #11151d; stroke-width: 4px; }
-.capital-star { fill: var(--gold); font-size: 15px; text-anchor: middle; paint-order: stroke; stroke: #000a; stroke-width: 3px; }
+.capital-star { fill: #ffffff; font-size: 15px; text-anchor: middle; paint-order: stroke; stroke: #000a; stroke-width: 3px; }
 .air-badge rect { fill: #0c0f15; stroke: #c9d3e3; stroke-width: 1; }
 .air-badge text { fill: #e6eefb; font-size: 11px; font-weight: 700; text-anchor: middle; }
 
