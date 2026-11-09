@@ -10,7 +10,8 @@ power, and the broadcast lies. It must never preview where the Poor Camp books t
 
 - No scripted alliances or side-switches. Pacts form and break only through play.
 - No nuclear weapons, bioweapons or coups, in units, tech or events.
-- No preset outcome for any contested place. Japan, Taiwan, Europe and South Asia start neutral or contested.
+- Starting territory is Justin's call (Nov 2026: Russia starts with continental Europe and Central Asia;
+  China with Mongolia, South Asia and Southeast Asia). Everything else starts neutral. No other preset outcomes.
 - No leader characters. Enemy commands are faceless (Beijing Command, Moscow Command).
 - No fixed AI personality per power. Temperaments are dealt at random each game.
 - Capitals are the real capitals: Washington, D.C., Beijing, Moscow.

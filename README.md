@@ -11,7 +11,7 @@ Design doc: [Freedom Simulator — Design Doc (draft)](https://claude.ai/artifac
 This is the first playable test of the core loop, not the real game. It answers one question:
 is a three-way simultaneous-orders war fun?
 
-- 31 land regions and 9 sea zones on a schematic world board: the Americas, Europe, Africa, the Middle East and Asia. The Atlantic wraps around the board edge. (The finished game moves to a real-looking map.)
+- 32 land regions and 9 sea zones on a schematic world board: the Americas, Europe, Africa, the Middle East and Asia. The Atlantic wraps around the board edge. (The finished game moves to a real-looking map.)
 - Infantry, fleets and air wings; every region you hold adds 1–4 points a turn to spend on builds
 - All resolution phases and collision rules from the design doc, with a step-by-step reveal
 - 1–3 humans on one device (pass it between commands), computer players fill the rest
@@ -45,8 +45,11 @@ npm run build       # single-file build in dist/
 | `tests/` | Engine tests |
 | `scripts/` | Playtest and single-file build |
 
-## Balance notes (AI vs AI, 400 games, current numbers)
+## Balance notes (AI vs AI, current numbers)
 
-Roughly: Greater America 43%, China 32%, Russia 24%. Most games end at the round limit
-(15 rounds, 7 of 14 objectives to win). These come from simple computer players, so treat them
-as a smoke test, not a verdict.
+Starting position: each power earns 13 points a turn. Russia holds continental Europe and Central
+Asia; China holds Mongolia, South Asia and Southeast Asia. In AI-only games Greater America
+wins about 63%, China 30%, Russia 6%. Most of that gap is the computer players: Russia's AI hoards
+huge stacks on its Chinese border instead of using them, and Russia and China fight each other
+while Greater America takes Britain and Western Europe. Treat these as a smoke test until humans
+have played it.

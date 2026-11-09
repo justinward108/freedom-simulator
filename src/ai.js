@@ -124,6 +124,13 @@
       if (enemyFleetDefense(z) === 0 || ours >= enemyFleetDefense(z) * 2) liftLeft[z] = fleetStay[z] * R.transportCapacity;
     }
 
+    // ---- Who is winning? ----
+    // In a three-way war the two trailing powers should lean on the leader, or the leader runs away with it.
+    const objectiveCount = (p) => E.objectivesHeld(state, p).length * 10 + E.income(state, p) / 10;
+    const rivals = FS.POWERS.filter((p) => p !== power && !state.eliminated[p]);
+    const leader = rivals.slice().sort((a, b) => objectiveCount(b) - objectiveCount(a))[0];
+    const leaderIsAhead = leader && objectiveCount(leader) > objectiveCount(power);
+
     // ---- Land attacks ----
     const candidates = [];
     for (const t of Object.keys(state.land)) {
@@ -137,6 +144,7 @@
       if (!sources.length) continue;
       const info = MAP.land[t];
       let worth = info.value + (info.objective ? 2 : 0) + (info.capital ? 2 : 0);
+      if (leaderIsAhead && state.land[t].owner === leader) worth += 3;
       candidates.push({ t, sources, def: defenseOf(t), worth });
     }
     candidates.sort((a, b) => b.worth / (b.def + 1) - a.worth / (a.def + 1));

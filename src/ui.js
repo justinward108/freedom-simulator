@@ -526,7 +526,7 @@
         <div><b>${totals.fleet}</b><span>fleets</span></div>
         <div><b>${rem.points}</b><span>points to spend</span></div>
       </section>
-      <p class="income-line">You hold <b>${myLand.length} regions</b>, earning <b>${E.income(g, p)} points a turn</b>. Every region you take adds its value (1–3) to that.</p>
+      <p class="income-line">You hold <b>${myLand.length} regions</b>, earning <b>${E.income(g, p)} points a turn</b>. Every region you take adds its value (1–4) to that.</p>
       <details class="howto"${app.game.round === 1 ? ' open' : ''}>
         <summary>How to give orders</summary>
         <ol>

@@ -8,8 +8,8 @@
   --text: #ece7db;
   --muted: #9aa0ad;
   --gold: #d8b45a;
-  --sea: #1d3550;
-  --sea-line: #3c6eaa;
+  --sea: #252b30;
+  --sea-line: #6f7c80;
   --focus: #ffe27a;
   --radius: 10px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -40,7 +40,7 @@ p { margin: 0 0 10px; line-height: 1.45; }
 /* ---- Layout ---- */
 .layout { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
 .board { padding: 12px 16px; min-width: 0; }
-#map { width: 100%; height: auto; display: block; background: radial-gradient(ellipse at 60% 50%, #172233 0%, #11151d 75%); border-radius: var(--radius); border: 1px solid var(--line); }
+#map { width: 100%; height: auto; display: block; background: radial-gradient(ellipse at 60% 50%, #1b1d22 0%, #121316 75%); border-radius: var(--radius); border: 1px solid var(--line); }
 .panel { border-left: 1px solid var(--line); background: var(--bg-2); padding: 16px; overflow-y: auto; max-height: calc(100vh - 60px); display: flex; flex-direction: column; gap: 12px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
@@ -66,9 +66,9 @@ p { margin: 0 0 10px; line-height: 1.45; }
 .space.is-highlight .ring { stroke: var(--focus); stroke-dasharray: none; stroke-width: 4; }
 
 .sea-body { fill: var(--sea); stroke: var(--sea-line); stroke-width: 2; fill-opacity: 0.85; }
-.sea-label { fill: #a9c4e6; font-size: 12px; font-weight: 600; text-anchor: middle; letter-spacing: 0.04em; }
-.sea-caption { fill: #a9c4e6; font-size: 10px; text-anchor: middle; letter-spacing: 0.06em; text-transform: uppercase; }
-.sea-empty { fill: #6f8bb0; font-size: 11px; text-anchor: middle; }
+.sea-label { fill: #c3cbcd; font-size: 12px; font-weight: 600; text-anchor: middle; letter-spacing: 0.04em; }
+.sea-caption { fill: #9aa4a7; font-size: 10px; text-anchor: middle; letter-spacing: 0.06em; text-transform: uppercase; }
+.sea-empty { fill: #7d878a; font-size: 11px; text-anchor: middle; }
 .chip { stroke: #0006; }
 .chip-text { fill: #fff; font-size: 13px; font-weight: 700; text-anchor: middle; }
 
@@ -165,9 +165,9 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .reach { margin: 0 0 6px; padding-left: 18px; font-size: 13px; }
 
 /* ---- Ghost markers where the board wraps ---- */
-.ghost-body { fill: #1d355055; stroke: var(--sea-line); stroke-width: 1.5; stroke-dasharray: 4 3; }
-.ghost-label { fill: #a9c4e6; font-size: 16px; text-anchor: middle; }
-.ghost-name { fill: #a9c4e6; font-size: 11px; text-anchor: middle; paint-order: stroke; stroke: #11151d; stroke-width: 4px; }
+.ghost-body { fill: #252b3088; stroke: var(--sea-line); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.ghost-label { fill: #c3cbcd; font-size: 16px; text-anchor: middle; }
+.ghost-name { fill: #9aa4a7; font-size: 11px; text-anchor: middle; paint-order: stroke; stroke: #11151d; stroke-width: 4px; }
 .ghost-fleets { font-size: 10px; font-weight: 700; text-anchor: middle; }
 .income-line { font-size: 13px; color: var(--muted); }
 .income-line b { color: var(--text); }

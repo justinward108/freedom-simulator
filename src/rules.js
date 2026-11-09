@@ -7,7 +7,7 @@
   FS.POWERS = ['ga', 'china', 'russia'];
 
   FS.RULES = {
-    version: 2, // bump when the map or rules change, so old saved games are not loaded
+    version: 3, // bump when the map or rules change, so old saved games are not loaded
 
     // A battle lasts at most this many rounds of fire in one turn.
     maxBattleRounds: 3,
@@ -21,7 +21,7 @@
     // Neutral garrisons defend at this value and never move.
     neutralDefense: 2,
 
-    defaultObjectivesToWin: 7,
+    defaultObjectivesToWin: 8,
     defaultRoundLimit: 15,
 
     unitNames: { inf: 'Infantry', fleet: 'Fleet', air: 'Air wing' },
