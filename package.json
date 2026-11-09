@@ -1,0 +1,12 @@
+{
+  "name": "freedom-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Freedom Simulator: a three-power simultaneous-orders war game set in the Poor Camp world.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "build": "node scripts/build-single.mjs",
+    "playtest": "node scripts/playtest.mjs"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Freedom Simulator — prototype</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title">FREEDOM SIMULATOR</span>
+      <span class="brand-sub">Ministry-licensed strategic training · Know your enemy · Prototype</span>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="top-actions">
+      <button class="ghost small" data-action="help">How a turn works</button>
+      <button class="ghost small" data-action="new-game">New game</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="board">
+      <svg id="map" viewBox="0 0 1100 620" role="group" aria-label="Strategic map of the Pacific theatre"></svg>
+      <div class="legend" id="legend"></div>
+      <p class="disclaimer">Region names are real; the factions, connections and outcomes are fictional. Not a map of borders or a forecast.</p>
+    </section>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </main>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="dialog" id="dialog" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <script src="src/rules.js"></script>
+  <script src="src/map.js"></script>
+  <script src="src/rng.js"></script>
+  <script src="src/engine.js"></script>
+  <script src="src/ai.js"></script>
+  <script src="src/ui.js"></script>
+  <script>FS.ui.init();</script>
+</body>
+</html>
