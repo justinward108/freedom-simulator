@@ -12,13 +12,16 @@ This is the first playable test of the core loop, not the real game. It answers 
 is a three-way simultaneous-orders war fun?
 
 - 32 land regions and 9 sea zones on a schematic world board: the Americas, Europe, Africa, the Middle East and Asia. The Atlantic wraps around the board edge. (The finished game moves to a real-looking map.)
-- Infantry, fleets and air wings; every region you hold adds 1–4 points a turn to spend on builds
+- Infantry, fleets and air wings; every region you hold adds 1–4 points a turn to spend
+- Seven structures (anti-aircraft guns, fortifications, coastal batteries, factories, recruitment
+  centres, airfields, naval bases) and six research fields with three tiers each
+- Objectives explained on screen, distinct unit icons, and hover tooltips on the map and panel
 - All resolution phases and collision rules from the design doc, with a step-by-step reveal
 - 1–3 humans on one device (pass it between commands), computer players fill the rest
 - Objectives to win and the round limit are set on the start screen, so they can be tested
 
-Not in stage 1: supply lines, manpower and mobilization, structures, technology, the broadcast
-layer and Civic Trust, diplomacy, online multiplayer. See the design doc's prototype plan.
+Not in yet: supply lines, manpower and mobilization, the broadcast layer and Civic Trust,
+diplomacy, online multiplayer. See the design doc's prototype plan.
 
 ## Playing it
 
@@ -48,14 +51,15 @@ npm run build       # single-file build in dist/
 ## Balance notes (AI vs AI, current numbers)
 
 Starting position: each power earns 13 points a turn. Russia holds continental Europe and Central
-Asia; China holds Mongolia, South Asia and Southeast Asia. Tuned with all-computer games until the
-three came out even: over 600 games, Greater America 36%, China 32%, Russia 31%, draws 2%.
+Asia; China holds Mongolia, South Asia and Southeast Asia. Greater America starts with Sea Power
+tier 1 and Russia with Coastal Missiles tier 1. Over 600 all-computer games: Greater America 33%,
+China 37%, Russia 30%.
 
-What mattered: Greater America's edge was structural, not economic. It could ship troops straight
-across the North Atlantic into Britain and Western Europe, which Russia barely defended. Cutting its
-income or raising its unit costs changed almost nothing. Stronger garrisons in Britain, Western
-Europe and Brazil, a second Russian Baltic fleet, and a stronger Chinese start in Southeast Asia
-evened it out. The computer players also no longer leave huge stacks idle on a quiet border.
+What mattered: before research and structures, Greater America's edge was structural (shipping
+troops straight across the North Atlantic), fixed with stronger garrisons in Britain, Western
+Europe and Brazil and a second Russian Baltic fleet. Once coastal batteries arrived they punished
+Greater America's navy hard (it fell to 15%); batteries now cost 4 and Greater America starts
+ahead in Sea Power, which the design calls for anyway.
 
 These numbers come from simple computer players, so they show the board isn't lopsided. They don't
 prove it's balanced for humans. Rerun with `npm run playtest -- 600 <any-name>` after changes.

@@ -7,6 +7,13 @@
 (function (root) {
   const FS = (root.FS = root.FS || {});
 
+  // Research priorities per power: economy first, then each power's own strengths.
+  const RESEARCH_ORDER = {
+    ga: ['industry', 'sea', 'air', 'land', 'airdef', 'coastal'],
+    china: ['industry', 'land', 'coastal', 'airdef', 'sea', 'air'],
+    russia: ['industry', 'land', 'airdef', 'air', 'coastal', 'sea'],
+  };
+
   const BUILD_PREFERENCES = {
     ga: ['fleet', 'inf', 'air', 'inf'],
     china: ['inf', 'inf', 'inf', 'fleet', 'air'],
@@ -27,7 +34,7 @@
     const orders = [];
     const mine = E.landOwnedBy(state, power);
     const isMine = (id) => state.land[id].owner === power;
-    const infAtt = E.unitValue(power, 'inf', 'att');
+    const infAtt = E.unitValue(power, 'inf', 'att', state);
 
     // ---- How dangerous is each region? ----
     // Enemy infantry next door, plus enemy infantry that enemy fleets could land here.
@@ -38,14 +45,14 @@
         if (c.owner === power || c.owner === 'neutral') continue;
         // An enemy stack next to several of our regions can only hit one of them with its full weight.
         const fronts = geo.landNeighbors(n).filter((x) => state.land[x].owner === power).length || 1;
-        t += (c.inf * E.unitValue(c.owner, 'inf', 'att')) / Math.sqrt(fronts);
+        t += (c.inf * E.unitValue(c.owner, 'inf', 'att', state)) / Math.sqrt(fronts);
       }
       for (const z of geo.seasOf(r)) {
         for (const p of FS.POWERS) {
           if (p === power || !state.sea[z].fleets[p]) continue;
           let carry = 0;
           for (const c of MAP.sea[z].coasts) if (c !== r && state.land[c].owner === p) carry += state.land[c].inf;
-          t += Math.min(state.sea[z].fleets[p] * R.transportCapacity, carry) * E.unitValue(p, 'inf', 'att');
+          t += Math.min(state.sea[z].fleets[p] * E.carryPerFleet(state, p), carry) * E.unitValue(p, 'inf', 'att', state);
         }
       }
       return t;
@@ -55,13 +62,13 @@
       const c = state.land[r];
       if (c.owner === 'neutral') return c.inf * R.neutralDefense;
       const bonus = MAP.land[r].home === c.owner ? R.powers[c.owner].homeDefenseBonus : 0;
-      return c.inf * Math.min(R.maxHitValue, E.unitValue(c.owner, 'inf', 'def') + bonus) + c.air * E.unitValue(c.owner, 'air', 'def');
+      return c.inf * Math.min(R.maxHitValue, E.unitValue(c.owner, 'inf', 'def', state) + bonus) + c.air * E.unitValue(c.owner, 'air', 'def', state);
     }
 
     // ---- Keep a guard at home, free the rest ----
     const free = {};
     for (const id of mine) {
-      const myDef = Math.min(R.maxHitValue, E.unitValue(power, 'inf', 'def') + (MAP.land[id].home === power ? R.powers[power].homeDefenseBonus : 0));
+      const myDef = Math.min(R.maxHitValue, E.unitValue(power, 'inf', 'def', state) + (MAP.land[id].home === power ? R.powers[power].homeDefenseBonus : 0));
       let need = Math.ceil((threat(id) * temper.homeGuard) / myDef);
       if (MAP.land[id].capital === power) need = Math.max(need, 1);
       // A very large stack never sits entirely idle: at most half of it stays on guard.
@@ -72,14 +79,14 @@
     // ---- Fleets ----
     const enemyFleets = (z) => FS.POWERS.filter((p) => p !== power).reduce((n, p) => n + state.sea[z].fleets[p], 0);
     const enemyFleetDefense = (z) =>
-      FS.POWERS.filter((p) => p !== power).reduce((n, p) => n + state.sea[z].fleets[p] * E.unitValue(p, 'fleet', 'def'), 0);
+      FS.POWERS.filter((p) => p !== power).reduce((n, p) => n + state.sea[z].fleets[p] * E.unitValue(p, 'fleet', 'def', state), 0);
     const unownedCoasts = (z) => MAP.sea[z].coasts.filter((c) => !isMine(c)).length;
     const fleetStay = {};
     const fleetAttacks = [];
     for (const z of Object.keys(state.sea)) {
       const n = state.sea[z].fleets[power];
       if (!n) continue;
-      const myStrength = n * E.unitValue(power, 'fleet', 'att');
+      const myStrength = n * E.unitValue(power, 'fleet', 'att', state);
       if (enemyFleets(z) > 0) { fleetStay[z] = n; continue; }
 
       let best = null;
@@ -89,7 +96,7 @@
       }
       if (best) {
         // Send what the attack needs; the rest stay to escort landings from this zone.
-        const fleetAtt = E.unitValue(power, 'fleet', 'att');
+        const fleetAtt = E.unitValue(power, 'fleet', 'att', state);
         const send = unownedCoasts(z) > 0 ? Math.min(n, Math.ceil((best.d * temper.attackRatio) / fleetAtt) + 1) : n;
         orders.push({ kind: 'move', unit: 'fleet', from: z, to: best.z, count: send });
         fleetAttacks.push(best.z);
@@ -99,7 +106,7 @@
       // A big idle fleet splits: half heads for a neighbouring zone with targets and no bigger navy.
       if (n >= 4) {
         const half = Math.floor(n / 2);
-        const halfStrength = half * E.unitValue(power, 'fleet', 'att');
+        const halfStrength = half * E.unitValue(power, 'fleet', 'att', state);
         const spread = geo.seaNeighbors(z)
           .filter((nz) => unownedCoasts(nz) > 0 && enemyFleetDefense(nz) * temper.attackRatio <= halfStrength && state.sea[nz].fleets[power] === 0)
           .sort((a, b) => unownedCoasts(b) - unownedCoasts(a));
@@ -125,8 +132,8 @@
     // anything else there (a landing is called off if we lose the zone).
     const liftLeft = {};
     for (const z of Object.keys(fleetStay)) {
-      const ours = fleetStay[z] * E.unitValue(power, 'fleet', 'att');
-      if (enemyFleetDefense(z) === 0 || ours >= enemyFleetDefense(z) * 2) liftLeft[z] = fleetStay[z] * R.transportCapacity;
+      const ours = fleetStay[z] * E.unitValue(power, 'fleet', 'att', state);
+      if (enemyFleetDefense(z) === 0 || ours >= enemyFleetDefense(z) * 2) liftLeft[z] = fleetStay[z] * E.carryPerFleet(state, power);
     }
 
     // ---- Who is winning? ----
@@ -157,7 +164,7 @@
     // Air wings that could patrol over a target add first-round fire (counted at half weight).
     const airNear = (t) =>
       mine.reduce((n, b) => n + (E.airTargets(state, power, b, 'patrol').includes(t) ? state.land[b].air : 0), 0) *
-      E.unitValue(power, 'air', 'att') * 0.5;
+      E.unitValue(power, 'air', 'att', state) * 0.5;
 
     const attackTargets = [];
     for (const c of candidates) {
@@ -216,8 +223,42 @@
       if (step.length) orders.push({ kind: 'move', unit: 'inf', from: id, to: step[0], count: free[id] });
     }
 
-    // ---- Builds ----
+    // ---- Research and structures ----
+    // A slice of the budget goes to long-term gains; most still goes to units.
     let points = state.points[power];
+    const order = RESEARCH_ORDER[power];
+    const nextField = order.find((f) => E.techLevel(state, power, f) < R.research[f].tiers.length);
+    if (nextField && E.researchCost(state, power, nextField) <= points * 0.45) {
+      orders.push({ kind: 'research', field: nextField });
+      points -= E.researchCost(state, power, nextField);
+    }
+    const capital = mine.find((id) => MAP.land[id].capital === power);
+    const lateRounds = state.round >= state.settings.roundLimit - 4;
+    const structureBudget = points * 0.4;
+    let structureSpent = 0;
+    const wantStructure = (unit, at) => {
+      const cost = R.structures[unit].cost;
+      if (!at || structureSpent + cost > structureBudget) return;
+      if (!E.buildSpots(state, power, unit).includes(at)) return;
+      orders.push({ kind: 'build', unit, at, count: 1 });
+      structureSpent += cost;
+    };
+    const enemyAirNear = (id) =>
+      FS.POWERS.some((p) => p !== power && E.landOwnedBy(state, p).some((b) => state.land[b].air > 0 && E.airTargets(state, p, b, 'patrol').includes(id)));
+    if (capital && threat(capital) > 0) wantStructure('fort', capital);
+    if (capital && enemyAirNear(capital)) wantStructure('aa', capital);
+    if (!lateRounds) {
+      const factorySpot = mine.filter((id) => MAP.land[id].home === power).sort((a, b) => MAP.land[b].value - MAP.land[a].value)[0];
+      wantStructure('factory', factorySpot);
+      const recruitSpot = mine.filter((id) => geo.landNeighbors(id).some((x) => !isMine(x))).sort((a, b) => threat(b) - threat(a))[0];
+      wantStructure('recruit', recruitSpot);
+    }
+    // Batteries on valuable coasts that enemy fleets are sitting off.
+    const exposed = mine.filter((id) => geo.seasOf(id).some((z) => enemyFleets(z) > 0) && (MAP.land[id].objective || MAP.land[id].value >= 2));
+    wantStructure('battery', exposed[0]);
+    points -= structureSpent;
+
+    // ---- Builds ----
     const prefs = BUILD_PREFERENCES[power];
     const costs = R.powers[power].units;
     const cheapest = Math.min(costs.inf.cost, costs.fleet.cost, costs.air.cost);
@@ -240,7 +281,7 @@
       if (unit === 'fleet') {
         // Build where fleets will be useful and safe: next to targets, not under a bigger enemy navy.
         const fleetScore = (z) => {
-          const ours = state.sea[z].fleets[power] * E.unitValue(power, 'fleet', 'def');
+          const ours = state.sea[z].fleets[power] * E.unitValue(power, 'fleet', 'def', state);
           return unownedCoasts(z) * 2 + state.sea[z].fleets[power] - (enemyFleetDefense(z) > ours ? 10 : 0);
         };
         const bestZone = spots.slice().sort((a, b) => fleetScore(b) - fleetScore(a))[0];

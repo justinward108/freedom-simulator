@@ -196,3 +196,72 @@ test('a full AI-free game runs to the round limit without crashing', () => {
   for (let i = 0; i < 10 && !s.winner; i++) s = E.resolveTurn(s, {}).state;
   assert.ok(s.winner, 'a winner (or draw) is declared at the round limit');
 });
+
+// ---- Structures and research ----
+
+test('research takes effect at the end of the turn and costs points', () => {
+  const s = E.newGame({ seed: 'r' });
+  const before = s.points.ga;
+  const { state } = E.resolveTurn(s, { ga: [{ kind: 'research', field: 'industry' }] });
+  assert.equal(state.tech.ga.industry, 1);
+  assert.equal(state.points.ga, before - FS.RULES.researchCosts[0] + E.income(state, 'ga'));
+  assert.equal(E.income(state, 'ga'), E.income(s, 'ga') + 2, 'Industry tier 1 adds 2 points a turn');
+});
+
+test('only one tier of a research field per turn', () => {
+  const s = E.newGame({ seed: 'r2' });
+  const v = E.validateOrders(s, 'china', [{ kind: 'research', field: 'land' }, { kind: 'research', field: 'land' }]);
+  assert.equal(v.accepted.length, 1);
+  assert.equal(v.rejected.length, 1);
+});
+
+test('research raises unit values', () => {
+  const s = E.newGame({ seed: 'r3' });
+  const base = E.unitValue('china', 'inf', 'att', s);
+  s.tech.china.land = 1;
+  assert.equal(E.unitValue('china', 'inf', 'att', s), base + 1);
+  s.tech.ga.sea = 3;
+  assert.equal(E.carryPerFleet(s, 'ga'), FS.RULES.transportCapacity + 1);
+});
+
+test('a factory adds 2 points a turn and a recruitment centre adds an infantry', () => {
+  const s = E.newGame({ seed: 'f' });
+  s.points.russia = 20;
+  const { state } = E.resolveTurn(s, {
+    russia: [
+      { kind: 'build', unit: 'factory', at: 'moscow', count: 1 },
+      { kind: 'build', unit: 'recruit', at: 'siberia', count: 1 },
+    ],
+  });
+  assert.equal(state.land.moscow.structures.factory, 1);
+  assert.equal(E.income(state, 'russia'), E.income(s, 'russia') + 2);
+  const next = E.resolveTurn(state, {}).state;
+  assert.equal(next.land.siberia.inf, state.land.siberia.inf + 1);
+});
+
+test('a region cannot exceed a structure limit', () => {
+  const s = E.newGame({ seed: 'lim' });
+  s.points.ga = 50;
+  const v = E.validateOrders(s, 'ga', [{ kind: 'build', unit: 'fort', at: 'eus', count: 1 }, { kind: 'build', unit: 'fort', at: 'eus', count: 1 }]);
+  assert.equal(v.accepted.length, 1);
+  const c = E.validateOrders(s, 'ga', [{ kind: 'build', unit: 'battery', at: 'canada', count: 1 }]);
+  assert.equal(c.accepted.length, 1, 'Canada is coastal');
+});
+
+test('anti-aircraft guns fire at enemy air wings over their region', () => {
+  const s = blankState('aa');
+  s.tech = { ga: {}, china: { airdef: 3 }, russia: {} };
+  s.land.alaska = { owner: 'ga', inf: 0, air: 3, structures: {} };
+  s.land.rfe = { owner: 'china', inf: 1, air: 0, structures: { aa: 3 } };
+  const { events } = E.resolveTurn(s, { ga: [{ kind: 'air', mode: 'patrol', from: 'alaska', to: 'rfe', count: 3 }] });
+  assert.ok(events.some((e) => e.phase === 'air' && /anti-aircraft guns over Russian Far East fire 6 shots/.test(e.text)));
+});
+
+test('coastal batteries fire at enemy fleets in the zone', () => {
+  const s = blankState('bat');
+  s.tech = { ga: {}, china: { coastal: 3 }, russia: {} };
+  s.land.beijing = { owner: 'china', inf: 1, air: 0, structures: { battery: 1 } };
+  s.sea.nwp.fleets.ga = 3;
+  const { events } = E.resolveTurn(s, {});
+  assert.ok(events.some((e) => e.phase === 'sea' && /coastal battery at Northern China fires into the Northwest Pacific/.test(e.text)));
+});

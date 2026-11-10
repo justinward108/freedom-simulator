@@ -31,12 +31,41 @@
   function unitWords(unit, n) {
     if (unit === 'inf') return plural(n, 'infantry', 'infantry');
     if (unit === 'fleet') return plural(n, 'fleet', 'fleets');
-    return plural(n, 'air wing', 'air wings');
+    if (unit === 'air') return plural(n, 'air wing', 'air wings');
+    const st = FS.RULES.structures[unit];
+    return st ? (n > 1 ? n + ' × ' : '') + st.name.toLowerCase() : unit;
   }
 
-  function unitValue(power, unit, role) {
-    const v = FS.RULES.powers[power].units[unit][role];
+  function isStructure(kind) {
+    return Object.prototype.hasOwnProperty.call(FS.RULES.structures, kind);
+  }
+
+  function techLevel(state, power, field) {
+    return (state && state.tech && state.tech[power] && state.tech[power][field]) || 0;
+  }
+
+  // Research bonuses on top of a power's base unit values.
+  function techBonus(state, power, unit, role) {
+    if (!state) return 0;
+    const field = unit === 'inf' ? 'land' : unit === 'air' ? 'air' : 'sea';
+    const t = techLevel(state, power, field);
+    if (role === 'att') return (t >= 1 ? 1 : 0) + (t >= 3 && unit !== 'fleet' ? 1 : 0);
+    return t >= 2 ? 1 : 0;
+  }
+
+  // A unit's hit value. Pass the state to include research.
+  function unitValue(power, unit, role, state) {
+    const v = FS.RULES.powers[power].units[unit][role] + techBonus(state, power, unit, role);
     return Math.min(v, FS.RULES.maxHitValue);
+  }
+
+  // Infantry each of this power's fleets can carry.
+  function carryPerFleet(state, power) {
+    return FS.RULES.transportCapacity + (techLevel(state, power, 'sea') >= 3 ? 1 : 0);
+  }
+
+  function structuresIn(state, id) {
+    return state.land[id].structures || {};
   }
 
   function soleFleetPower(seaCell) {
@@ -48,8 +77,11 @@
     return Object.keys(state.land).filter((id) => state.land[id].owner === power);
   }
 
+  // Points a power earns each turn: the value of every region it holds, plus factories and Industry research.
   function income(state, power) {
-    return landOwnedBy(state, power).reduce((sum, id) => sum + FS.MAP.land[id].value, 0);
+    let total = 0;
+    for (const id of landOwnedBy(state, power)) total += FS.MAP.land[id].value + (structuresIn(state, id).factory ? 2 : 0);
+    return total + 2 * techLevel(state, power, 'industry');
   }
 
   function objectivesHeld(state, power) {
@@ -71,7 +103,7 @@
     const land = {};
     for (const id of Object.keys(FS.MAP.land)) {
       const s = FS.MAP.start.land[id];
-      land[id] = { owner: s.owner, inf: s.inf, air: s.air || 0 };
+      land[id] = { owner: s.owner, inf: s.inf, air: s.air || 0, structures: {} };
     }
 
     const sea = {};
@@ -94,12 +126,17 @@
       land,
       sea,
       points: {},
+      tech: {},
       eliminated: {},
       winner: null,
       winReason: null,
       lastTurn: null,
     };
-    for (const p of FS.POWERS) state.points[p] = income(state, p);
+    for (const p of FS.POWERS) {
+      state.tech[p] = {};
+      for (const f of Object.keys(FS.RULES.research)) state.tech[p][f] = (FS.RULES.powers[p].startTech || {})[f] || 0;
+      state.points[p] = income(state, p);
+    }
     return state;
   }
 
@@ -139,11 +176,24 @@
   }
 
   // Infantry and air build in any held land region; fleets in a sea zone touching a held coast.
+  // Structures build in a held land region (coastal ones on a coast) that isn't already at the limit.
   function buildSpots(state, power, unit) {
     if (unit === 'fleet') {
       return Object.keys(state.sea).filter((s) => FS.MAP.sea[s].coasts.some((c) => state.land[c].owner === power));
     }
+    if (isStructure(unit)) {
+      const spec = FS.RULES.structures[unit];
+      return landOwnedBy(state, power).filter((id) => (!spec.coastal || FS.geo.isCoastal(id)) && (structuresIn(state, id)[unit] || 0) < spec.max);
+    }
     return landOwnedBy(state, power);
+  }
+
+  function costOf(power, unit) {
+    return isStructure(unit) ? FS.RULES.structures[unit].cost : FS.RULES.powers[power].units[unit].cost;
+  }
+
+  function researchCost(state, power, field) {
+    return FS.RULES.researchCosts[techLevel(state, power, field)];
   }
 
   // ---- Order validation ---------------------------------------------------------
@@ -158,8 +208,11 @@
 
     const reject = (order, reason) => rejected.push({ order, reason });
 
+    const researched = {};
+    const structuresPending = {};
     for (const raw of orders || []) {
       const o = Object.assign({}, raw);
+      if (o.kind === 'research') o.count = 1;
       const count = Number(o.count);
       if (!Number.isInteger(count) || count < 1) {
         reject(o, 'the count must be a whole number of at least 1');
@@ -197,11 +250,26 @@
         used.air[o.from] = (used.air[o.from] || 0) + count;
         accepted.push(o);
       } else if (o.kind === 'build') {
-        const spec = FS.RULES.powers[power].units[o.unit];
-        if (!spec) { reject(o, 'unknown unit'); continue; }
-        const cost = spec.cost * count;
+        if (!FS.RULES.powers[power].units[o.unit] && !isStructure(o.unit)) { reject(o, 'unknown unit'); continue; }
+        const cost = costOf(power, o.unit) * count;
         if (pointsUsed + cost > state.points[power]) { reject(o, 'not enough points'); continue; }
-        if (!buildSpots(state, power, o.unit).includes(o.at)) { reject(o, 'cannot build there'); continue; }
+        if (!buildSpots(state, power, o.unit).includes(o.at)) { reject(o, 'cannot build that there'); continue; }
+        if (isStructure(o.unit)) {
+          const key = o.at + '|' + o.unit;
+          const already = (structuresIn(state, o.at)[o.unit] || 0) + (structuresPending[key] || 0);
+          if (already + count > FS.RULES.structures[o.unit].max) { reject(o, 'a region can have at most ' + FS.RULES.structures[o.unit].max + ' ' + FS.RULES.structures[o.unit].short); continue; }
+          structuresPending[key] = (structuresPending[key] || 0) + count;
+        }
+        pointsUsed += cost;
+        accepted.push(o);
+      } else if (o.kind === 'research') {
+        const field = FS.RULES.research[o.field];
+        if (!field) { reject(o, 'unknown research field'); continue; }
+        if (techLevel(state, power, o.field) >= field.tiers.length) { reject(o, field.name + ' is fully researched'); continue; }
+        if (researched[o.field]) { reject(o, 'one tier of ' + field.name + ' per turn'); continue; }
+        const cost = researchCost(state, power, o.field);
+        if (pointsUsed + cost > state.points[power]) { reject(o, 'not enough points'); continue; }
+        researched[o.field] = true;
         pointsUsed += cost;
         accepted.push(o);
       } else {
@@ -236,11 +304,16 @@
     if (o.kind === 'air' && o.mode === 'rebase') return who + unitWords('air', o.count) + ' rebase ' + name(o.from) + ' → ' + name(o.to);
     if (o.kind === 'air') return who + unitWords('air', o.count) + ' from ' + name(o.from) + ' patrol over ' + name(o.to);
     if (o.kind === 'build') return who + 'build ' + unitWords(o.unit, o.count) + ' in ' + name(o.at);
+    if (o.kind === 'research') {
+      const f = FS.RULES.research[o.field];
+      return who + 'research ' + (f ? f.name : o.field);
+    }
     return who + 'unknown order';
   }
 
   function orderSpaces(o) {
     if (o.kind === 'build') return [o.at];
+    if (o.kind === 'research') return [];
     return [o.from, o.to].concat(o.via ? [o.via] : []);
   }
 
@@ -277,8 +350,9 @@
         let h = 0;
         const n = sideTotal(s);
         for (let i = 0; i < n; i++) if (rng.d6() <= s.value) h++;
-        if (round === 1) {
-          for (const sup of s.support) for (let i = 0; i < sup.count; i++) if (rng.d6() <= sup.value) h++;
+        for (const sup of s.support) {
+          if (round > (sup.rounds || 1)) continue;
+          for (let i = 0; i < sup.count; i++) if (rng.d6() <= sup.value) h++;
         }
         return h;
       });
@@ -331,15 +405,15 @@
 
   // Two forces trading places meet on the border and fight there first. If one side is
   // wiped out the other carries on; if both survive, both fall back to where they started.
-  function resolveSwaps(moves, unit, rng, ev, phase) {
+  function resolveSwaps(state, moves, unit, rng, ev, phase) {
     const bounced = [];
     for (const a of moves) {
       if (a.count <= 0 || a.via) continue;
       for (const b of moves) {
         if (b === a || b.count <= 0 || b.via || b.power === a.power || a.count <= 0) continue;
         if (!(b.from === a.to && b.to === a.from)) continue;
-        const sa = makeSide(a.power, 'att', [{ origin: a.from, count: a.count }], unitValue(a.power, unit, 'att'));
-        const sb = makeSide(b.power, 'att', [{ origin: b.from, count: b.count }], unitValue(b.power, unit, 'att'));
+        const sa = makeSide(a.power, 'att', [{ origin: a.from, count: a.count }], unitValue(a.power, unit, 'att', state));
+        const sb = makeSide(b.power, 'att', [{ origin: b.from, count: b.count }], unitValue(b.power, unit, 'att', state));
         const before = [a.count, b.count];
         fight([sa, sb], rng);
         const ca = sideTotal(sa);
@@ -417,17 +491,45 @@
       airOver[f.to] = airOver[f.to] || {};
       airOver[f.to][f.power] = (airOver[f.to][f.power] || 0) + f.count;
     }
-    const superiority = {}; // space -> { power, count }
+    // Anti-aircraft guns fire first, at every enemy air wing over their region.
+    for (const space of Object.keys(airOver)) {
+      if (!FS.geo.isLand(space)) continue;
+      const gunsOwner = state.land[space].owner;
+      const guns = structuresIn(state, space).aa || 0;
+      if (!guns || gunsOwner === 'neutral') continue;
+      const targets = Object.keys(airOver[space]).filter((p) => p !== gunsOwner && airOver[space][p] > 0);
+      if (!targets.length) continue;
+      const tier = techLevel(state, gunsOwner, 'airdef');
+      const dice = guns * (tier >= 3 ? 2 : 1);
+      const hitOn = 2 + Math.min(tier, 2);
+      let hits = 0;
+      for (let i = 0; i < dice; i++) if (rng.d6() <= hitOn) hits++;
+      const downed = {};
+      for (let k = 0; k < hits; k++) {
+        const t = targets.filter((p) => airOver[space][p] > 0).sort((a, b) => airOver[space][b] - airOver[space][a])[0];
+        if (!t) break;
+        airOver[space][t] -= 1;
+        downed[t] = (downed[t] || 0) + 1;
+      }
+      const list = Object.keys(downed).map((p) => unitWords('air', downed[p]) + ' of ' + powerName(p));
+      ev('air', powerName(gunsOwner) + ' anti-aircraft guns over ' + name(space) + ' fire ' + dice + ' shot' + (dice > 1 ? 's' : '') + (list.length ? ' and bring down ' + list.join(' and ') + '.' : ' and miss.'), [space], gunsOwner);
+    }
+
+    const superiority = {}; // space -> power
     const airLeft = {}; // space -> { power: survivors }
     for (const space of Object.keys(airOver)) {
-      const powers = Object.keys(airOver[space]);
+      const powers = Object.keys(airOver[space]).filter((p) => airOver[space][p] > 0);
+      if (powers.length === 0) {
+        airLeft[space] = {};
+        continue;
+      }
       if (powers.length === 1) {
-        superiority[space] = { power: powers[0], count: airOver[space][powers[0]] };
+        superiority[space] = powers[0];
         airLeft[space] = Object.assign({}, airOver[space]);
         ev('air', powerName(powers[0]) + ' patrols over ' + name(space) + ' unopposed and holds air superiority there.', [space], powers[0]);
         continue;
       }
-      const sides = powers.map((p) => makeSide(p, 'att', [{ origin: null, count: airOver[space][p] }], unitValue(p, 'air', 'att')));
+      const sides = powers.map((p) => makeSide(p, 'att', [{ origin: null, count: airOver[space][p] }], unitValue(p, 'air', 'att', state)));
       const before = sides.map(sideTotal);
       fight(sides, rng);
       airLeft[space] = {};
@@ -435,7 +537,7 @@
       const left = sides.filter((s) => sideTotal(s) > 0);
       let text = 'Air battle over ' + name(space) + ': ' + battleSummary(before, sides) + '.';
       if (left.length === 1) {
-        superiority[space] = { power: left[0].power, count: sideTotal(left[0]) };
+        superiority[space] = left[0].power;
         text += ' ' + powerName(left[0].power) + ' wins air superiority.';
       } else {
         text += ' The skies stay contested.';
@@ -452,9 +554,16 @@
         }
       }
     }
+    // The power holding the sky over a space adds its surviving patrols to battles there.
+    // Wings that flew from an airfield fire for two rounds instead of one.
     const airSupport = (space, power) => {
-      const sup = superiority[space];
-      return sup && sup.power === power ? [{ count: sup.count, value: unitValue(power, 'air', 'att') }] : [];
+      if (superiority[space] !== power) return [];
+      const out = [];
+      for (const f of flights) {
+        if (f.to !== space || f.power !== power || f.survive <= 0) continue;
+        out.push({ count: f.survive, value: unitValue(power, 'air', 'att', state), rounds: structuresIn(state, f.from).airfield ? 2 : 1 });
+      }
+      return out;
     };
 
     // ---- 2. Sea ----
@@ -465,19 +574,53 @@
       alive.flatMap((p) => orders[p].filter((o) => o.kind === 'move' && o.unit === 'fleet').map((o) => Object.assign({ power: p }, o)))
     );
     for (const m of fleetMoves) state.sea[m.from].fleets[m.power] -= m.count;
-    const seaBounced = resolveSwaps(fleetMoves, 'fleet', rng, ev, 'sea');
+    const seaBounced = resolveSwaps(state, fleetMoves, 'fleet', rng, ev, 'sea');
     for (const b of seaBounced) state.sea[b.origin].fleets[b.power] += b.count;
 
     const seaRetreats = [];
     for (const z of Object.keys(state.sea)) {
-      const sides = [];
+      const forcesBy = {};
       for (const p of alive) {
         const staying = state.sea[z].fleets[p];
         const arriving = fleetMoves.filter((m) => m.power === p && m.to === z && m.count > 0).map((m) => ({ origin: m.from, count: m.count }));
         const forces = (staying > 0 ? [{ origin: z, count: staying, home: true }] : []).concat(arriving);
-        if (forces.length === 0) continue;
+        if (forces.length) forcesBy[p] = makeSide(p, 'att', forces, 0);
+      }
+
+      // Coastal batteries on every shore of the zone fire at enemy fleets in it first.
+      for (const c of FS.MAP.sea[z].coasts) {
+        const gunner = state.land[c].owner;
+        const batteries = structuresIn(state, c).battery || 0;
+        if (!batteries || gunner === 'neutral') continue;
+        const targets = Object.keys(forcesBy).filter((p) => p !== gunner && sideTotal(forcesBy[p]) > 0);
+        if (!targets.length) continue;
+        const tier = techLevel(state, gunner, 'coastal');
+        const dice = batteries * (tier >= 3 ? 2 : 1);
+        const hitOn = 2 + Math.min(tier, 2);
+        let hits = 0;
+        for (let i = 0; i < dice; i++) if (rng.d6() <= hitOn) hits++;
+        const sunk = {};
+        for (let k = 0; k < hits; k++) {
+          const t = targets.filter((p) => sideTotal(forcesBy[p]) > 0).sort((a, b) => sideTotal(forcesBy[b]) - sideTotal(forcesBy[a]))[0];
+          if (!t) break;
+          removeCasualties(forcesBy[t], 1);
+          sunk[t] = (sunk[t] || 0) + 1;
+        }
+        const list = Object.keys(sunk).map((p) => unitWords('fleet', sunk[p]) + ' of ' + powerName(p));
+        ev('sea', powerName(gunner) + ' coastal battery at ' + name(c) + ' fires into the ' + name(z) + (list.length ? ' and sinks ' + list.join(' and ') + '.' : ' and misses.'), [c, z], gunner);
+      }
+      for (const p of Object.keys(forcesBy)) if (sideTotal(forcesBy[p]) === 0) state.sea[z].fleets[p] = 0;
+
+      // A naval base on any shore of the zone makes its owner's fleets there hit on 1 more.
+      const baseBonus = (p) => (FS.MAP.sea[z].coasts.some((c) => state.land[c].owner === p && structuresIn(state, c).navalbase) ? 1 : 0);
+      const sides = [];
+      for (const p of Object.keys(forcesBy)) {
+        const f = forcesBy[p];
+        if (sideTotal(f) === 0) continue;
+        const staying = f.forces.filter((x) => x.home).reduce((n, x) => n + x.count, 0);
         const role = seaControlAtStart[z] === p && staying > 0 ? 'def' : 'att';
-        sides.push(makeSide(p, role, forces, unitValue(p, 'fleet', role), airSupport(z, p)));
+        const value = Math.min(FS.RULES.maxHitValue, unitValue(p, 'fleet', role, state) + baseBonus(p));
+        sides.push(makeSide(p, role, f.forces, value, airSupport(z, p)));
       }
       if (sides.length === 0) continue;
       if (sides.length === 1) {
@@ -517,7 +660,7 @@
       if (!m.via) continue;
       const controller = soleFleetPower(state.sea[m.via]);
       const key = m.power + '|' + m.via;
-      const capacity = state.sea[m.via].fleets[m.power] * FS.RULES.transportCapacity;
+      const capacity = state.sea[m.via].fleets[m.power] * carryPerFleet(state, m.power);
       const used = lift[key] || 0;
       if (controller !== m.power) {
         ev('transport', powerName(m.power) + ' landing at ' + name(m.to) + ' called off: it does not control the ' + name(m.via) + '. ' + unitWords('inf', m.count) + ' stay in ' + name(m.from) + '.', [m.from, m.via, m.to], m.power);
@@ -526,7 +669,7 @@
       }
       if (used + m.count > capacity) {
         const room = Math.max(0, capacity - used);
-        ev('transport', powerName(m.power) + ' had room for ' + room + ' of ' + m.count + ' infantry crossing the ' + name(m.via) + '. The rest stay in ' + name(m.from) + '.', [m.from, m.via, m.to], m.power);
+        ev('transport', powerName(m.power) + ' had room for ' + room + ' of ' + m.count + ' infantry crossing the ' + name(m.via) + ' (' + carryPerFleet(state, m.power) + ' per fleet). The rest stay in ' + name(m.from) + '.', [m.from, m.via, m.to], m.power);
         m.count = room;
       }
       lift[key] = used + m.count;
@@ -535,7 +678,7 @@
 
     // ---- 4. Land ----
     for (const m of infMoves) state.land[m.from].inf -= m.count;
-    const landBounced = resolveSwaps(infMoves, 'inf', rng, ev, 'land');
+    const landBounced = resolveSwaps(state, infMoves, 'inf', rng, ev, 'land');
     for (const b of landBounced) state.land[b.origin].inf += b.count;
 
     const landRetreats = [];
@@ -559,15 +702,17 @@
           value = FS.RULES.neutralDefense;
         } else {
           const bonus = FS.MAP.land[r].home === owner ? FS.RULES.powers[owner].homeDefenseBonus : 0;
-          value = Math.min(FS.RULES.maxHitValue, unitValue(owner, 'inf', 'def') + bonus);
+          const fort = structuresIn(state, r).fort ? 1 : 0;
+          value = Math.min(FS.RULES.maxHitValue, unitValue(owner, 'inf', 'def', state) + bonus + fort);
           support = airSupport(r, owner);
-          if (cell.air > 0) support = support.concat([{ count: cell.air, value: unitValue(owner, 'air', 'def') }]);
+          // Air wings left at home help defend it (for two rounds from an airfield).
+          if (cell.air > 0) support = support.concat([{ count: cell.air, value: unitValue(owner, 'air', 'def', state), rounds: structuresIn(state, r).airfield ? 2 : 1 }]);
         }
         sides.push(makeSide(owner, 'def', [{ origin: r, count: cell.inf, home: true }].concat(ownerArrivals), value, support));
       }
       for (const p of Object.keys(arrivalsBy)) {
         if (p === owner) continue;
-        sides.push(makeSide(p, 'att', arrivalsBy[p], unitValue(p, 'inf', 'att'), airSupport(r, p)));
+        sides.push(makeSide(p, 'att', arrivalsBy[p], unitValue(p, 'inf', 'att', state), airSupport(r, p)));
       }
       if (sides.length === 0) continue;
 
@@ -652,16 +797,35 @@
     for (const p of alive) {
       let spent = 0;
       for (const o of orders[p]) {
+        if (o.kind === 'research') {
+          const cost = researchCost(state, p, o.field);
+          state.tech[p][o.field] += 1;
+          spent += cost;
+          const f = FS.RULES.research[o.field];
+          ev('production', powerName(p) + ' completes ' + f.name + ' research, tier ' + state.tech[p][o.field] + ': ' + f.tiers[state.tech[p][o.field] - 1] + '.', [], p);
+          continue;
+        }
         if (o.kind !== 'build') continue;
         if (!buildSpots(state, p, o.unit).includes(o.at)) {
           ev('production', powerName(p) + ' build in ' + name(o.at) + ' cancelled: the region was lost. No points spent.', [o.at], p);
           continue;
         }
         if (o.unit === 'fleet') state.sea[o.at].fleets[p] += o.count;
-        else state.land[o.at][o.unit] += o.count;
-        spent += FS.RULES.powers[p].units[o.unit].cost * o.count;
+        else if (isStructure(o.unit)) {
+          const st = (state.land[o.at].structures = state.land[o.at].structures || {});
+          st[o.unit] = Math.min(FS.RULES.structures[o.unit].max, (st[o.unit] || 0) + o.count);
+        } else state.land[o.at][o.unit] += o.count;
+        spent += costOf(p, o.unit) * o.count;
         ev('production', powerName(p) + ' builds ' + unitWords(o.unit, o.count) + ' in ' + name(o.at) + '.', [o.at], p);
       }
+
+      // Recruitment centres raise one infantry each, wherever the power still holds them.
+      const recruited = landOwnedBy(state, p).filter((id) => structuresIn(state, id).recruit);
+      for (const id of recruited) state.land[id].inf += 1;
+      if (recruited.length) {
+        ev('production', powerName(p) + ' recruitment centres raise ' + unitWords('inf', recruited.length) + ' (' + recruited.map((id) => FS.MAP.land[id].label).join(', ') + ').', recruited, p);
+      }
+
       const earned = income(state, p);
       state.points[p] = prev.points[p] - spent + earned;
       ev('production', powerName(p) + ' earns ' + earned + ' points (' + state.points[p] + ' to spend next turn).', [], p);
@@ -724,6 +888,12 @@
     soleFleetPower,
     unitValue,
     powerName,
+    techLevel,
+    carryPerFleet,
+    structuresIn,
+    isStructure,
+    costOf,
+    researchCost,
     // exposed for tests
     _internal: { fight, decideHolder, makeSide, sideTotal },
   };

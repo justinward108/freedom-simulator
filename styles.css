@@ -171,3 +171,52 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .ghost-fleets { font-size: 10px; font-weight: 700; text-anchor: middle; }
 .income-line { font-size: 13px; color: var(--muted); }
 .income-line b { color: var(--text); }
+
+/* ---- Icons ---- */
+.ico { width: 16px; height: 16px; fill: currentColor; vertical-align: -3px; flex: none; }
+.ico-sm { width: 12px; height: 12px; vertical-align: -1px; }
+.ico-lg { width: 22px; height: 22px; }
+.node-ico { fill: #fff; opacity: 0.92; }
+.chip-ico { fill: #fff; }
+.air-badge use { fill: #e6eefb; }
+.objective-badge circle { fill: #0c0f15; stroke: #e8ecf2; stroke-width: 1.2; }
+.objective-badge use { fill: #e8ecf2; }
+.structure-row rect { fill: #0c0f15; stroke: #8a93a3; stroke-width: 1; }
+.structure-row use { fill: #e8ecf2; }
+.chip-text { text-anchor: middle; }
+
+/* ---- Tooltip ---- */
+.tooltip { position: fixed; z-index: 20; max-width: 280px; background: #0b0d12f2; border: 1px solid #3a4152; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; pointer-events: none; box-shadow: 0 6px 20px #0008; }
+.tooltip b { display: block; font-size: 13.5px; }
+.tip-sub { display: block; color: var(--muted); margin-bottom: 4px; }
+.tip-row { display: flex; align-items: center; gap: 6px; border-left: 3px solid var(--pc, transparent); padding-left: 4px; }
+.tip-note { margin-top: 6px; color: var(--muted); }
+.tip-objective { color: var(--text); }
+.tip-objective b { display: inline; font-size: inherit; }
+
+/* ---- Panel pieces ---- */
+.totals div { align-items: center; gap: 2px; cursor: help; }
+.pill { display: inline-flex; align-items: center; gap: 5px; background: #0f1218; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; font-size: 12.5px; margin: 0 6px 6px 0; }
+.unit-line { display: flex; flex-wrap: wrap; margin: 0; }
+.objective-note { font-size: 13px; background: #1c2130; border-radius: 8px; padding: 6px 8px; }
+.objectives-box, .research-box { background: var(--bg-3); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; }
+.objectives-box h4, .research-box h4 { color: var(--gold); display: flex; align-items: center; gap: 6px; }
+.obj-bar { display: grid; grid-template-columns: 28px 1fr 34px; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; }
+.obj-name { font-weight: 700; color: var(--pc); }
+.obj-track { height: 8px; background: #0f1218; border-radius: 4px; overflow: hidden; }
+.obj-track i { display: block; height: 100%; background: var(--pc); }
+.obj-num { text-align: right; color: var(--muted); }
+.obj-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.obj-chip { font-size: 12px; padding: 3px 8px; border-left: 4px solid var(--pc); border-radius: 0 6px 6px 0; }
+.objectives-box details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.research-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.pips { display: inline-flex; gap: 3px; vertical-align: 1px; }
+.pip { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--gold); display: inline-block; }
+.pip.on { background: var(--gold); }
+.done { font-size: 12px; color: var(--gold); white-space: nowrap; }
+.build-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.build-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; font-size: 12px; }
+.build-btn .ico-lg { fill: var(--text); }
+.build-name em { color: var(--gold); font-style: normal; }
+.build-cost { color: var(--muted); font-size: 11.5px; }
+.status-power .ico { fill: currentColor; margin-right: 2px; }

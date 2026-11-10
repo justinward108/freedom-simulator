@@ -7,6 +7,25 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Icon set, shared by the map and the side panel. Each symbol is drawn on a 24×24 grid. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="ico-inf" viewBox="0 0 24 24"><path d="M6 10.5c0-3.6 2.7-6.5 6-6.5s6 2.9 6 6.5v.5H6z"/><rect x="4.5" y="10.6" width="15" height="1.8" rx=".9"/><circle cx="12" cy="14.8" r="2.4"/><path d="M6.5 23c0-3.5 2.4-5.6 5.5-5.6s5.5 2.1 5.5 5.6z"/></symbol>
+    <symbol id="ico-air" viewBox="0 0 24 24"><path d="M12 1.5c.9 0 1.5 1 1.5 2.4v5.4l8.5 5v2.3l-8.5-2.6v5l2.6 1.9V23L12 22l-4.1 1v-2.1l2.6-1.9v-5L2 16.6v-2.3l8.5-5V3.9C10.5 2.5 11.1 1.5 12 1.5z"/></symbol>
+    <symbol id="ico-fleet" viewBox="0 0 24 24"><path d="M2 15.5h20l-3.2 5H5.2z"/><path d="M6 15V12h12v3z"/><path d="M9 11.5V8h5v3.5z"/><rect x="11" y="3" width="1.6" height="5"/></symbol>
+    <symbol id="ico-aa" viewBox="0 0 24 24"><path d="M4 22l3-6h10l3 6z"/><circle cx="12" cy="15" r="2.6"/><path d="M11.2 13.5L16.6 2.6l1.6.8-5.4 10.9zM8.4 13.8L10 4.2l1.7.3-1.6 9.6z"/></symbol>
+    <symbol id="ico-fort" viewBox="0 0 24 24"><path d="M2 22V8h4v3h3V8h6v3h3V8h4v14h-8v-5a2 2 0 0 0-4 0v5z"/></symbol>
+    <symbol id="ico-battery" viewBox="0 0 24 24"><path d="M2 15.5h8l9.8-7.4 1.4 1.8-9.6 7.6H2z"/><circle cx="7" cy="18.5" r="3.3"/><circle cx="7" cy="18.5" r="1.2" fill="#000" fill-opacity=".35"/></symbol>
+    <symbol id="ico-factory" viewBox="0 0 24 24"><path d="M2 22V11l6 3.5V11l6 3.5V4h3v4h2V4h3v18z"/></symbol>
+    <symbol id="ico-recruit" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3.2"/><path d="M2.5 21c0-4 2.9-6.7 6.5-6.7s6.5 2.7 6.5 6.7z"/><rect x="16.5" y="9" width="2.2" height="9" rx="1.1"/><rect x="13.1" y="12.4" width="9" height="2.2" rx="1.1"/></symbol>
+    <symbol id="ico-airfield" viewBox="0 0 24 24"><path d="M10.5 2h3v20h-3z"/><path d="M3 11.5l7.5-3v4l-7.5 2zM21 11.5l-7.5-3v4l7.5 2z"/><rect x="2" y="20" width="20" height="2"/></symbol>
+    <symbol id="ico-navalbase" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="6.5" width="2" height="14"/><rect x="7" y="9" width="10" height="2" rx="1"/><path d="M3.5 13.5c0 4.5 3.8 8 8.5 8s8.5-3.5 8.5-8l-2.4 1.6c-.5 2.9-3 4.6-6.1 4.6s-5.6-1.7-6.1-4.6z"/></symbol>
+    <symbol id="ico-flag" viewBox="0 0 24 24"><rect x="4" y="2" width="2.2" height="20" rx="1"/><path d="M6.2 3h13.3l-3.2 4.6 3.2 4.6H6.2z"/></symbol>
+    <symbol id="ico-research" viewBox="0 0 24 24"><path d="M9 2h6v2h-1v5.2l5.7 9.6A2.1 2.1 0 0 1 17.9 22H6.1a2.1 2.1 0 0 1-1.8-3.2L10 9.2V4H9z"/></symbol>
+    <symbol id="ico-points" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6.5l1.7 3.5 3.8.5-2.8 2.6.7 3.8-3.4-1.8-3.4 1.8.7-3.8-2.8-2.6 3.8-.5z" fill="#000" fill-opacity=".35"/></symbol>
+  </svg>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+
   <header class="topbar">
     <div class="brand">
       <span class="brand-title">FREEDOM SIMULATOR</span>
@@ -14,7 +33,7 @@
     </div>
     <div class="status" id="status"></div>
     <div class="top-actions">
-      <button class="ghost small" data-action="help">How a turn works</button>
+      <button class="ghost small" data-action="help">How to play</button>
       <button class="ghost small" data-action="new-game">New game</button>
     </div>
   </header>

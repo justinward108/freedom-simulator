@@ -99,6 +99,7 @@
   }
 
   function arrowSvg(o, power) {
+    if (o.kind === 'research') return ''; // research has no place on the map
     const off = (FS.POWERS.indexOf(power) - 1) * 5;
     const cls = 'arrow arrow-' + (o.kind === 'air' ? 'air' : o.unit === 'fleet' ? 'fleet' : 'inf');
     const stroke = color(power);
@@ -124,20 +125,40 @@
     return out;
   }
 
-  // Hover text for a space: who holds it and exactly what is there.
-  function tooltip(s, id) {
+  const STRUCTURE_ORDER = ['fort', 'aa', 'battery', 'factory', 'recruit', 'airfield', 'navalbase'];
+
+  // An icon from the shared set in index.html, for use in the side panel.
+  function icon(name, extra) {
+    return `<svg class="ico${extra ? ' ' + extra : ''}" aria-hidden="true"><use href="#ico-${name}"/></svg>`;
+  }
+
+  // Rich hover card for a space on the map.
+  function tipForSpace(s, id) {
     if (geo.isSea(id)) {
-      const fleets = FS.POWERS.filter((p) => s.sea[id].fleets[p] > 0).map((p) => pname(p) + ': ' + s.sea[id].fleets[p] + ' fleet' + (s.sea[id].fleets[p] > 1 ? 's' : ''));
-      return MAP.sea[id].name + ' (sea zone)\n' + (fleets.length ? fleets.join('\n') : 'No fleets');
+      const n = MAP.sea[id];
+      const fleets = FS.POWERS.filter((p) => s.sea[id].fleets[p] > 0);
+      const holder = E.soleFleetPower(s.sea[id]);
+      return `<b>${esc(n.name)}</b><span class="tip-sub">Sea zone · ${holder ? 'held by ' + esc(pname(holder)) : fleets.length ? 'contested' : 'empty'}</span>` +
+        (fleets.length ? fleets.map((p) => `<div class="tip-row" style="--pc:${color(p)}">${icon('fleet')} ${esc(pname(p))}: ${s.sea[id].fleets[p]} fleet${s.sea[id].fleets[p] > 1 ? 's' : ''}</div>`).join('') : '') +
+        `<div class="tip-note">Fleets that stay here can carry infantry between any of its coasts: ${esc(n.coasts.map((c) => MAP.land[c].label).join(', '))}.</div>`;
     }
+    const n = MAP.land[id];
     const c = s.land[id];
     const who = c.owner === 'neutral' ? 'Neutral' : pname(c.owner);
-    return MAP.land[id].name + ' — ' + who + '\n' + c.inf + ' infantry' + (c.air ? ', ' + c.air + ' air wing' + (c.air > 1 ? 's' : '') : '') + '\nWorth ' + MAP.land[id].value + ' pts/turn' + (MAP.land[id].objective ? ' · objective' : '');
+    let html = `<b>${esc(n.name)}</b><span class="tip-sub" style="color:${color(c.owner)}">${esc(who)} · worth ${n.value} point${n.value > 1 ? 's' : ''} a turn</span>`;
+    html += `<div class="tip-row">${icon('inf')} ${c.inf} infantry</div>`;
+    if (c.air) html += `<div class="tip-row">${icon('air')} ${c.air} air wing${c.air > 1 ? 's' : ''}</div>`;
+    const st = E.structuresIn(s, id);
+    for (const k of STRUCTURE_ORDER) if (st[k]) html += `<div class="tip-row">${icon(k)} ${esc(R.structures[k].name)}${st[k] > 1 ? ' × ' + st[k] : ''}</div>`;
+    if (n.capital) html += `<div class="tip-note">★ Capital of ${esc(pname(n.capital))}.</div>`;
+    if (n.objective) html += `<div class="tip-note tip-objective">${icon('flag')} <b>Objective.</b> Hold it at the end of a round and it counts toward victory. Take it by moving infantry in and winning the battle.</div>`;
+    return html;
   }
 
   // opts: { state, highlight: Set, targets: Set, selected, mine: power, arrows: [{order, power}] }
   function renderMap(opts) {
     const s = opts.state;
+    app.board = s;
     const highlight = opts.highlight || new Set();
     const targets = opts.targets || new Set();
     const parts = [];
@@ -165,7 +186,6 @@
       if (opts.selected === z) cls.push('is-selected');
       parts.push(
         `<g class="${cls.join(' ')}" data-space="${z}" role="button" aria-label="${esc(MAP.sea[z].name)} (continued from the left edge)">` +
-          `<title>${esc(MAP.sea[z].name)}: the same sea zone as on the left edge of the board.</title>` +
           `<circle class="ring" cx="${gh.x}" cy="${gh.y}" r="${GHOST_R + 6}"/>` +
           `<circle class="ghost-body" cx="${gh.x}" cy="${gh.y}" r="${GHOST_R}"/>` +
           `<text class="ghost-label" x="${gh.x}" y="${gh.y - 4}">⇄</text>` +
@@ -186,18 +206,17 @@
       if (opts.selected === z) cls.push('is-selected');
       if (opts.mine && s.sea[z].fleets[opts.mine] > 0) cls.push('is-mine');
       const present = FS.POWERS.filter((p) => s.sea[z].fleets[p] > 0);
-      const chipW = 34;
+      const chipW = 46;
       const startX = n.x - (present.length * chipW) / 2;
       const chips = present
         .map((p, i) => {
           const x = startX + i * chipW + 2;
-          return `<rect class="chip" x="${x}" y="${n.y + 2}" width="${chipW - 4}" height="20" rx="5" fill="${color(p)}"/><text class="chip-text" x="${x + (chipW - 4) / 2}" y="${n.y + 16}">${s.sea[z].fleets[p]}</text>`;
+          return `<rect class="chip" x="${x}" y="${n.y + 2}" width="${chipW - 4}" height="20" rx="5" fill="${color(p)}"/><use href="#ico-fleet" class="chip-ico" x="${x + 3}" y="${n.y + 4}" width="16" height="16"/><text class="chip-text" x="${x + 29}" y="${n.y + 16}">${s.sea[z].fleets[p]}</text>`;
         })
         .join('');
       const owner = E.soleFleetPower(s.sea[z]);
       parts.push(
         `<g class="${cls.join(' ')}" data-space="${z}" tabindex="0" role="button" aria-label="${esc(n.name)}">` +
-          `<title>${esc(tooltip(s, z))}</title>` +
           `<circle class="mine-ring" cx="${n.x}" cy="${n.y}" r="${radius(z) + 4}"${opts.mine ? ` style="--mc:${color(opts.mine)}"` : ''}/>` +
           `<circle class="ring" cx="${n.x}" cy="${n.y}" r="${radius(z) + 7}"/>` +
           `<circle class="sea-body" cx="${n.x}" cy="${n.y}" r="${radius(z)}"${owner ? ` stroke="${color(owner)}"` : ''}/>` +
@@ -217,18 +236,32 @@
       if (opts.selected === id) cls.push('is-selected');
       if (opts.mine && c.owner === opts.mine) cls.push('is-mine');
       let g = `<g class="${cls.join(' ')}" data-space="${id}" tabindex="0" role="button" aria-label="${esc(n.name)}">`;
-      g += `<title>${esc(tooltip(s, id))}</title>`;
       g += `<circle class="mine-ring" cx="${n.x}" cy="${n.y}" r="${r + 10}"${opts.mine ? ` style="--mc:${color(opts.mine)}"` : ''}/>`;
       g += `<circle class="ring" cx="${n.x}" cy="${n.y}" r="${r + 7}"/>`;
       if (n.objective) g += `<circle class="objective-ring" cx="${n.x}" cy="${n.y}" r="${r + 4}"/>`;
       g += `<circle class="land-body" cx="${n.x}" cy="${n.y}" r="${r}" fill="${color(c.owner)}"/>`;
-      g += `<text class="inf-count" x="${n.x}" y="${n.y + 3}">${c.inf}</text>`;
-      g += `<text class="inf-caption" x="${n.x}" y="${n.y + 15}">inf</text>`;
+      // Infantry: soldier icon over the count.
+      g += `<use href="#ico-inf" class="node-ico" x="${n.x - 7}" y="${n.y - 19}" width="14" height="14"/>`;
+      g += `<text class="inf-count" x="${n.x}" y="${n.y + 11}">${c.inf}</text>`;
       if (c.air > 0) {
-        g += `<g class="air-badge"><rect x="${n.x + r - 16}" y="${n.y - r - 7}" width="36" height="18" rx="9"/><text x="${n.x + r + 2}" y="${n.y - r + 6}">✈ ${c.air}</text></g>`;
+        g += `<g class="air-badge"><rect x="${n.x + r - 14}" y="${n.y - r - 8}" width="38" height="20" rx="10"/><use href="#ico-air" x="${n.x + r - 10}" y="${n.y - r - 5}" width="14" height="14"/><text x="${n.x + r + 14}" y="${n.y - r + 6}">${c.air}</text></g>`;
       }
       if (n.capital) g += `<text class="capital-star" x="${n.x - r + 2}" y="${n.y - r + 8}">★</text>`;
-      g += `<text class="land-label" x="${n.x}" y="${n.y + r + 18}">${esc(n.label)}</text>`;
+      if (n.objective) {
+        g += `<g class="objective-badge"><circle cx="${n.x - r - 6}" cy="${n.y + 2}" r="10"/><use href="#ico-flag" x="${n.x - r - 13}" y="${n.y - 5}" width="14" height="14"/></g>`;
+      }
+      // Structures: a row of small icons under the region.
+      const st = E.structuresIn(s, id);
+      const built = STRUCTURE_ORDER.filter((k) => st[k]);
+      if (built.length) {
+        const w = built.length * 15 + 6;
+        g += `<g class="structure-row"><rect x="${n.x - w / 2}" y="${n.y + r + 2}" width="${w}" height="18" rx="9"/>`;
+        built.forEach((k, i) => {
+          g += `<use href="#ico-${k}" x="${n.x - w / 2 + 4 + i * 15}" y="${n.y + r + 4}" width="14" height="14"/>`;
+        });
+        g += '</g>';
+      }
+      g += `<text class="land-label" x="${n.x}" y="${n.y + r + (built.length ? 34 : 18)}">${esc(n.label)}</text>`;
       g += '</g>';
       parts.push(g);
     }
@@ -242,8 +275,12 @@
   function renderLegend() {
     const items = FS.POWERS.map((p) => `<span class="legend-item"><i style="background:${color(p)}"></i>${esc(pname(p))}</span>`);
     items.push(`<span class="legend-item"><i style="background:${color('neutral')}"></i>Neutral</span>`);
-    items.push('<span class="legend-item"><i class="legend-objective"></i>Objective</span>');
-    items.push('<span class="legend-item">★ Capital · number = infantry · ✈ = air wings · coloured chips at sea = fleets</span>');
+    items.push(`<span class="legend-item">${icon('flag')} Objective</span>`);
+    items.push('<span class="legend-item">★ Capital</span>');
+    items.push(`<span class="legend-item">${icon('inf')} Infantry</span>`);
+    items.push(`<span class="legend-item">${icon('air')} Air wings</span>`);
+    items.push(`<span class="legend-item">${icon('fleet')} Fleets</span>`);
+    items.push(`<span class="legend-item">${STRUCTURE_ORDER.map((k) => icon(k)).join('')} Structures (hover a region)</span>`);
     items.push('<span class="legend-item"><i class="legend-mine"></i>Yours (while giving orders)</span>');
     $('legend').innerHTML = items.join('');
   }
@@ -258,7 +295,8 @@
     const need = g.settings.objectivesToWin;
     const cells = FS.POWERS.map((p) => {
       const out = g.eliminated[p] ? ' out' : '';
-      return `<span class="status-power${out}" style="--pc:${color(p)}" title="${esc(pname(p))}: ${E.landOwnedBy(g, p).length} regions, earning ${E.income(g, p)} points a turn"><b>${R.powers[p].short}</b> ${E.objectivesHeld(g, p).length}/${need} obj · ${E.landOwnedBy(g, p).length} regions · +${E.income(g, p)}/turn</span>`;
+      const tip = `${pname(p)}: holds ${E.objectivesHeld(g, p).length} of the ${need} objectives needed to win, ${E.landOwnedBy(g, p).length} regions, and earns ${E.income(g, p)} points a turn.`;
+      return `<span class="status-power${out}" style="--pc:${color(p)}" data-tip="${esc(tip)}"><b>${R.powers[p].short}</b> ${icon('flag', 'ico-sm')}${E.objectivesHeld(g, p).length}/${need} · ${E.landOwnedBy(g, p).length} regions · +${E.income(g, p)}/turn</span>`;
     });
     const round = g.winner && g.lastTurn ? g.lastTurn.round : g.round;
     const label = app.screen === 'reveal' ? 'Round ' + round + ' · resolving' : 'Round ' + round + ' of ' + g.settings.roundLimit;
@@ -333,17 +371,20 @@
 
   function showHelp() {
     showOverlay(`
-      <h2>How a turn works</h2>
+      <h2>How to play</h2>
+      <h3>${icon('flag')} How you win</h3>
+      <p>Some regions are <b>objectives</b>, marked with a flag on the map: the three capitals (★) and key strategic regions. Hold the target number of them (${app.game ? app.game.settings.objectivesToWin : R.defaultObjectivesToWin} by default) at the end of any round and you win. If nobody does before the round limit, whoever holds the most wins. You take an objective the same way as any region: move infantry in and win the battle.</p>
+      <h3>How a turn works</h3>
       <ol class="help-steps">
         <li><b>Plan in secret.</b> Each command gives orders to its units. Units without orders hold. Nobody sees anyone else’s orders.</li>
         <li><b>Lock in.</b> When every command has locked in, all orders happen at once, in fixed phases:</li>
       </ol>
       <ol class="help-phases">
-        <li><b>Air:</b> air wings on patrol over the same space fight for air superiority. The winner’s wings fire in the first round of any battle there.</li>
-        <li><b>Sea:</b> fleets move and fight. You hold a zone when only your fleets are left.</li>
+        <li><b>Air:</b> anti-aircraft guns fire first. Then air wings on patrol over the same space fight for air superiority. The winner’s wings fire in the first round of any battle there.</li>
+        <li><b>Sea:</b> fleets move, coastal batteries fire, then fleets fight. You hold a zone when only your fleets are left.</li>
         <li><b>Transport:</b> infantry crossing water need you to hold the zone, with 2 infantry per fleet. Otherwise the landing is called off and they stay home.</li>
         <li><b>Land:</b> every move happens at once, then battles are rolled.</li>
-        <li><b>Production:</b> builds appear; income (the value of regions you hold) is paid for next turn.</li>
+        <li><b>Production:</b> new units and structures appear, research completes, and income (the value of regions you hold, plus factories and Industry) is paid for next turn.</li>
       </ol>
       <h3>When moves collide</h3>
       <table class="help-table">
@@ -363,7 +404,17 @@
           return `<tr><td style="color:${color(p)}"><b>${esc(pname(p))}</b></td><td>${cell('inf')}</td><td>${cell('fleet')}</td><td>${cell('air')}</td></tr>`;
         }).join('')}
       </table>
-      <p class="hint">Russia’s infantry defend at +${R.powers.russia.homeDefenseBonus} on Russian soil. Neutral garrisons defend at ${R.neutralDefense} and never move.</p>
+      <p class="hint">Russia’s infantry defend at +${R.powers.russia.homeDefenseBonus} on Russian soil. Neutral garrisons defend at ${R.neutralDefense} and never move. Research raises these numbers.</p>
+      <h3>${icon('fort')} Structures</h3>
+      <p>Built with points in a region you hold. They belong to the region, so a captured factory pays its new owner.</p>
+      <table class="help-table">
+        ${STRUCTURE_ORDER.map((k) => `<tr><td>${icon(k)} <b>${esc(R.structures[k].name)}</b><br><span class="hint">${R.structures[k].cost} pts${R.structures[k].max > 1 ? ' · up to ' + R.structures[k].max : ''}${R.structures[k].coastal ? ' · coastal' : ''}</span></td><td>${esc(R.structures[k].blurb)}</td></tr>`).join('')}
+      </table>
+      <h3>${icon('research')} Research</h3>
+      <p>Spend points on permanent upgrades: one tier per field per turn, ${R.researchCosts.join(' / ')} points for tiers 1 / 2 / 3, taking effect the next turn. Greater America starts at Sea Power tier 1 and Russia at Coastal Missiles tier 1.</p>
+      <table class="help-table">
+        ${Object.keys(R.research).map((f) => `<tr><td><b>${esc(R.research[f].name)}</b></td><td>${R.research[f].tiers.map((t, i) => (i + 1) + '. ' + esc(t)).join('<br>')}</td></tr>`).join('')}
+      </table>
       <div class="actions"><button class="primary" data-action="close-overlay">Back to the war</button></div>`);
   }
 
@@ -492,9 +543,13 @@
     const c = g.land[id];
     const tags = [];
     if (n.capital) tags.push('capital of ' + esc(pname(n.capital)));
-    if (n.objective) tags.push('objective');
     tags.push('worth ' + n.value + ' pts/turn');
-    return `<h3 style="color:${color(c.owner)}">${esc(n.name)}</h3><p class="meta">${esc(c.owner === 'neutral' ? 'Neutral' : pname(c.owner))} · ${tags.join(' · ')}</p><p>${c.inf} infantry${c.air ? ' · ' + c.air + ' air wing' + (c.air > 1 ? 's' : '') : ''}</p>`;
+    const st = E.structuresIn(g, id);
+    const built = STRUCTURE_ORDER.filter((k) => st[k]).map((k) => `<span class="pill" data-tip="${esc(R.structures[k].blurb)}">${icon(k)} ${esc(R.structures[k].short)}${st[k] > 1 ? ' × ' + st[k] : ''}</span>`);
+    let html = `<h3 style="color:${color(c.owner)}">${esc(n.name)}</h3><p class="meta">${esc(c.owner === 'neutral' ? 'Neutral' : pname(c.owner))} · ${tags.join(' · ')}</p>`;
+    if (n.objective) html += `<p class="objective-note">${icon('flag')} <b>Objective.</b> Counts toward victory while you hold it.</p>`;
+    html += `<p class="unit-line"><span class="pill">${icon('inf')} ${c.inf} infantry</span>${c.air ? `<span class="pill">${icon('air')} ${c.air} air wing${c.air > 1 ? 's' : ''}</span>` : ''}${built.join('')}</p>`;
+    return html;
   }
 
   function unitCount(n, one, many) {
@@ -521,17 +576,18 @@
     };
     let html = `
       <section class="totals">
-        <div><b>${totals.inf}</b><span>infantry</span></div>
-        <div><b>${totals.air}</b><span>air wings</span></div>
-        <div><b>${totals.fleet}</b><span>fleets</span></div>
-        <div><b>${rem.points}</b><span>points to spend</span></div>
+        <div data-tip="Infantry hold and take regions. Attack ${E.unitValue(p, 'inf', 'att', g)}, defence ${E.unitValue(p, 'inf', 'def', g)}.">${icon('inf', 'ico-lg')}<b>${totals.inf}</b><span>infantry</span></div>
+        <div data-tip="Air wings patrol over a battle to add firepower, or defend where they're based. Attack ${E.unitValue(p, 'air', 'att', g)}, defence ${E.unitValue(p, 'air', 'def', g)}.">${icon('air', 'ico-lg')}<b>${totals.air}</b><span>air wings</span></div>
+        <div data-tip="Fleets fight for sea zones and carry ${E.carryPerFleet(g, p)} infantry each across a zone they hold. Attack ${E.unitValue(p, 'fleet', 'att', g)}, defence ${E.unitValue(p, 'fleet', 'def', g)}.">${icon('fleet', 'ico-lg')}<b>${totals.fleet}</b><span>fleets</span></div>
+        <div data-tip="Points buy units, structures and research. You earn ${E.income(g, p)} a turn from the regions you hold.">${icon('points', 'ico-lg')}<b>${rem.points}</b><span>points</span></div>
       </section>
+      ${objectivesBox()}
       <p class="income-line">You hold <b>${myLand.length} regions</b>, earning <b>${E.income(g, p)} points a turn</b>. Every region you take adds its value (1–4) to that.</p>
       <details class="howto"${app.game.round === 1 ? ' open' : ''}>
         <summary>How to give orders</summary>
         <ol>
           <li>Pick one of your places below, or click it on the map. Your places have a coloured outline.</li>
-          <li>Choose what its units do: <b>infantry</b> move or attack, <b>air wings</b> patrol over a battle to add firepower, <b>fleets</b> sail or stay to carry infantry, and any place can <b>build</b> new units with points.</li>
+          <li>Choose what its units do: <b>infantry</b> move or attack, <b>air wings</b> patrol over a battle to add firepower, <b>fleets</b> sail or stay to carry infantry. Any region you hold can <b>build</b> units and structures, and the Research section below buys upgrades.</li>
           <li>Press <b>Lock in</b> when you’re done. Anything without orders stays where it is and defends.</li>
         </ol>
       </details>
@@ -565,7 +621,59 @@
       </button>`;
     }
     html += '</section>';
+    html += researchBox(rem);
     return html;
+  }
+
+  // "How you win": what objectives are, how many you need, and where they all are.
+  function objectivesBox() {
+    const g = app.game;
+    const need = g.settings.objectivesToWin;
+    const all = geo.objectives();
+    const bars = FS.POWERS.filter((p) => !g.eliminated[p])
+      .map((p) => {
+        const n = E.objectivesHeld(g, p).length;
+        return `<div class="obj-bar" style="--pc:${color(p)}"><span class="obj-name">${esc(R.powers[p].short)}</span><span class="obj-track"><i style="width:${Math.min(100, (100 * n) / need)}%"></i></span><span class="obj-num">${n}/${need}</span></div>`;
+      })
+      .join('');
+    const list = all
+      .map((id) => {
+        const o = g.land[id].owner;
+        return `<button class="obj-chip" data-action="select" data-space="${id}" style="--pc:${color(o)}" data-tip="${esc(MAP.land[id].name + ' — ' + (o === 'neutral' ? 'neutral' : pname(o)))}">${esc(MAP.land[id].label)}</button>`;
+      })
+      .join('');
+    return `<section class="objectives-box">
+        <h4>${icon('flag')} How you win</h4>
+        <p>Regions with a flag ${icon('flag', 'ico-sm')} are <b>objectives</b>: the three capitals and key strategic regions. Hold <b>${need}</b> of them at the end of any round to win. If nobody does by round ${g.settings.roundLimit}, whoever holds the most wins.</p>
+        ${bars}
+        <p class="hint">To take one, move infantry into it and win the battle. To keep one, leave enough troops there; fortifications help.</p>
+        <details><summary>All ${all.length} objectives (coloured by who holds them)</summary><div class="obj-chips">${list}</div></details>
+      </section>`;
+  }
+
+  // Research: one tier per field per turn, paid with points, takes effect next turn.
+  function researchBox(rem) {
+    const g = app.game;
+    const p = app.current;
+    const ordered = new Set(app.orders[p].filter((o) => o.kind === 'research').map((o) => o.field));
+    const rows = Object.keys(R.research)
+      .map((f) => {
+        const spec = R.research[f];
+        const level = E.techLevel(g, p, f);
+        const pips = spec.tiers.map((t, i) => `<i class="pip${i < level ? ' on' : ''}" data-tip="Tier ${i + 1}: ${esc(t)}"></i>`).join('');
+        let action;
+        if (level >= spec.tiers.length) action = '<span class="done">Complete</span>';
+        else if (ordered.has(f)) action = '<span class="done">Researching ✓</span>';
+        else {
+          const cost = E.researchCost(g, p, f);
+          action = `<button class="ghost small" data-action="research" data-field="${f}"${cost > rem.points ? ' disabled' : ''} data-tip="Takes effect next turn.">Research · ${cost} pts</button>`;
+        }
+        const next = level < spec.tiers.length ? 'Next: ' + spec.tiers[level] : spec.tiers[spec.tiers.length - 1];
+        return `<div class="research-row"><div><b>${esc(spec.name)}</b> <span class="pips">${pips}</span><div class="hint">${esc(next)}</div></div>${action}</div>`;
+      })
+      .join('');
+    return `<section class="research-box"><h4>${icon('research')} Research</h4>
+      <p class="explain">Permanent upgrades. One tier per field per turn; each takes effect next turn.</p>${rows}</section>`;
   }
 
   // For a place you don't hold: which of your units could reach it this turn.
@@ -592,6 +700,29 @@
       return `<p class="hint">None of your units can reach it this turn.${esc(tip)}</p>`;
     }
     return `<p class="reach-title">Your units that can reach it:</p><ul class="reach">${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul><p class="hint">Select one of those to give the order.</p>`;
+  }
+
+  function buildButton(unit, at, cost, points, label, tip, note, blocked) {
+    return `<button class="build-btn" data-action="build" data-unit="${unit}" data-at="${at}"${blocked || cost > points ? ' disabled' : ''} data-tip="${esc(tip)}">${icon(unit, 'ico-lg')}<span class="build-name">${esc(label)}${note ? ' <em>' + esc(note) + '</em>' : ''}</span><span class="build-cost">${cost} pts</span></button>`;
+  }
+
+  // Structures this region can still take, with how many it has and how many are ordered.
+  function structureBuilder(id, points) {
+    const g = app.game;
+    const p = app.current;
+    const have = E.structuresIn(g, id);
+    const pending = {};
+    for (const o of app.orders[p]) if (o.kind === 'build' && o.at === id && E.isStructure(o.unit)) pending[o.unit] = (pending[o.unit] || 0) + o.count;
+    const buttons = STRUCTURE_ORDER.filter((k) => !R.structures[k].coastal || geo.isCoastal(id)).map((k) => {
+      const spec = R.structures[k];
+      const count = (have[k] || 0) + (pending[k] || 0);
+      const full = count >= spec.max;
+      const note = spec.max > 1 ? count + '/' + spec.max : full ? (pending[k] ? 'ordered' : 'built') : '';
+      return buildButton(k, id, spec.cost, points, spec.short, spec.name + ': ' + spec.blurb, note, full);
+    });
+    return `<div class="order-form"><h4>Build structures here</h4>
+      <p class="explain">Structures belong to the region: if it's captured, they work for the new owner. Hover one to see what it does.</p>
+      <div class="build-grid">${buttons.join('')}</div></div>`;
   }
 
   function renderOrdersPanel() {
@@ -638,12 +769,13 @@
               <button class="ghost small" data-action="add-air" data-mode="rebase">Order rebase</button></div>`;
           }
         }
-        html += `<div class="order-form"><h4>Build here · ${rem.points} pts left</h4>
+        html += `<div class="order-form"><h4>Build units here · ${rem.points} pts left</h4>
           <p class="explain">New units appear at the end of the turn, so they can act next turn.</p>
-          <div class="form-row">
-          <button class="ghost small" data-action="build" data-unit="inf" data-at="${id}"${costs.inf.cost > rem.points ? ' disabled' : ''}>+ Infantry · ${costs.inf.cost} pts</button>
-          <button class="ghost small" data-action="build" data-unit="air" data-at="${id}"${costs.air.cost > rem.points ? ' disabled' : ''}>+ Air wing · ${costs.air.cost} pts</button>
-        </div></div>`;
+          <div class="build-grid">
+          ${buildButton('inf', id, costs.inf.cost, rem.points, 'Infantry', `Holds and takes ground. Attack ${E.unitValue(p, 'inf', 'att', g)}, defence ${E.unitValue(p, 'inf', 'def', g)}.`)}
+          ${buildButton('air', id, costs.air.cost, rem.points, 'Air wing', `Patrols over battles to add firepower; defends its base. Attack ${E.unitValue(p, 'air', 'att', g)}, defence ${E.unitValue(p, 'air', 'def', g)}.`)}
+          </div></div>`;
+        html += structureBuilder(id, rem.points);
       } else if (geo.isSea(id)) {
         const free = rem.sea[id];
         if (free > 0) {
@@ -660,7 +792,7 @@
         if (E.buildSpots(g, p, 'fleet').includes(id)) {
           html += `<div class="order-form"><h4>Build here · ${rem.points} pts left</h4>
             <p class="explain">New fleets appear at the end of the turn.</p>
-            <div class="form-row"><button class="ghost small" data-action="build" data-unit="fleet" data-at="${id}"${costs.fleet.cost > rem.points ? ' disabled' : ''}>+ Fleet · ${costs.fleet.cost} pts</button></div></div>`;
+            <div class="build-grid">${buildButton('fleet', id, costs.fleet.cost, rem.points, 'Fleet', `Fights for sea zones and carries ${E.carryPerFleet(g, p)} infantry. Attack ${E.unitValue(p, 'fleet', 'att', g)}, defence ${E.unitValue(p, 'fleet', 'def', g)}.`)}</div></div>`;
         }
       } else {
         html += reachableFrom(id);
@@ -837,12 +969,14 @@
         if (existing >= 0) {
           const next = list.map((o, i) => (i === existing ? Object.assign({}, o, { count: o.count + 1 }) : o));
           const v = E.validateOrders(app.game, p, next);
-          if (v.rejected.length) app.message = 'Not enough points.';
+          if (v.rejected.length) app.message = 'That can’t be built: ' + v.rejected[0].reason + '.';
           else app.orders[p] = next;
           return render();
         }
         return addOrder({ kind: 'build', unit: el.dataset.unit, at: el.dataset.at, count: 1 });
       }
+      case 'research':
+        return addOrder({ kind: 'research', field: el.dataset.field });
       case 'remove-order':
         app.orders[p] = app.orders[p].filter((_, i) => i !== Number(el.dataset.index));
         app.message = null;
@@ -888,7 +1022,39 @@
     render();
   }
 
+  // ---- Tooltips -------------------------------------------------------------------------
+  // Anything with data-tip shows that text on hover; map spaces show a rich card.
+
+  let tipTarget = null;
+
+  function onPointerMove(e) {
+    const tip = $('tooltip');
+    const el = e.target.closest ? e.target.closest('[data-tip], #map [data-space]') : null;
+    if (!el || !app.board) {
+      tip.hidden = true;
+      tipTarget = null;
+      return;
+    }
+    if (el !== tipTarget) {
+      tipTarget = el;
+      if (el.dataset.tip) tip.textContent = el.dataset.tip;
+      else tip.innerHTML = tipForSpace(app.board, el.dataset.space);
+      tip.hidden = false;
+    }
+    const pad = 14;
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    let x = e.clientX + pad;
+    let y = e.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    tip.style.left = Math.max(8, x) + 'px';
+    tip.style.top = Math.max(8, y) + 'px';
+  }
+
   function init() {
+    document.addEventListener('mousemove', onPointerMove);
+    document.addEventListener('mouseleave', () => ($('tooltip').hidden = true));
     document.addEventListener('click', (e) => {
       const el = e.target.closest('[data-action]');
       if (el && !el.disabled) onAction(el);
