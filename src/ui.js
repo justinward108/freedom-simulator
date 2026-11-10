@@ -235,7 +235,8 @@
       if (targets.has(id)) cls.push('is-target');
       if (opts.selected === id) cls.push('is-selected');
       if (opts.mine && c.owner === opts.mine) cls.push('is-mine');
-      let g = `<g class="${cls.join(' ')}" data-space="${id}" tabindex="0" role="button" aria-label="${esc(n.name)}">`;
+      if (n.objective) cls.push('is-objective');
+      let g = `<g class="${cls.join(' ')}" data-space="${id}" tabindex="0" role="button" aria-label="${esc(n.name)}${n.objective ? ', objective' : ''}">`;
       g += `<circle class="mine-ring" cx="${n.x}" cy="${n.y}" r="${r + 10}"${opts.mine ? ` style="--mc:${color(opts.mine)}"` : ''}/>`;
       g += `<circle class="ring" cx="${n.x}" cy="${n.y}" r="${r + 7}"/>`;
       if (n.objective) g += `<circle class="objective-ring" cx="${n.x}" cy="${n.y}" r="${r + 4}"/>`;
@@ -247,8 +248,11 @@
         g += `<g class="air-badge"><rect x="${n.x + r - 14}" y="${n.y - r - 8}" width="38" height="20" rx="10"/><use href="#ico-air" x="${n.x + r - 10}" y="${n.y - r - 5}" width="14" height="14"/><text x="${n.x + r + 14}" y="${n.y - r + 6}">${c.air}</text></g>`;
       }
       if (n.capital) g += `<text class="capital-star" x="${n.x - r + 2}" y="${n.y - r + 8}">★</text>`;
+      // Objectives fly a flag above the region in the holder's colour, so who holds what reads at a glance.
       if (n.objective) {
-        g += `<g class="objective-badge"><circle cx="${n.x - r - 6}" cy="${n.y + 2}" r="10"/><use href="#ico-flag" x="${n.x - r - 13}" y="${n.y - 5}" width="14" height="14"/></g>`;
+        const top = n.y - r - 3;
+        g += `<g class="objective-flag"><line x1="${n.x}" y1="${top}" x2="${n.x}" y2="${top - 24}"/>` +
+          `<path d="M${n.x} ${top - 24}h18l-5 6 5 6h-18z" fill="${color(c.owner)}"/></g>`;
       }
       // Structures: a row of small icons under the region.
       const st = E.structuresIn(s, id);
@@ -275,7 +279,7 @@
   function renderLegend() {
     const items = FS.POWERS.map((p) => `<span class="legend-item"><i style="background:${color(p)}"></i>${esc(pname(p))}</span>`);
     items.push(`<span class="legend-item"><i style="background:${color('neutral')}"></i>Neutral</span>`);
-    items.push(`<span class="legend-item">${icon('flag')} Objective</span>`);
+    items.push(`<button class="legend-item legend-toggle" data-action="toggle-objectives" aria-pressed="false" data-tip="Dim everything except the objectives, to see who holds what">${icon('flag')} Objectives only</button>`);
     items.push('<span class="legend-item">★ Capital</span>');
     items.push(`<span class="legend-item">${icon('inf')} Infantry</span>`);
     items.push(`<span class="legend-item">${icon('air')} Air wings</span>`);
@@ -974,6 +978,12 @@
           return render();
         }
         return addOrder({ kind: 'build', unit: el.dataset.unit, at: el.dataset.at, count: 1 });
+      }
+      case 'toggle-objectives': {
+        const on = $('map').classList.toggle('objectives-only');
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        el.classList.toggle('on', on);
+        return undefined;
       }
       case 'research':
         return addOrder({ kind: 'research', field: el.dataset.field });
