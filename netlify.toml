@@ -1,0 +1,12 @@
+# Netlify settings for freedom.poor.camp.
+# Linked to the GitHub repo, Netlify runs the package script and serves dist/site.
+# For a drag-and-drop deploy instead, upload dist/freedom-simulator-netlify.zip (npm run package).
+[build]
+  command = "node scripts/package.mjs"
+  publish = "dist/site"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

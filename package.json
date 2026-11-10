@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "build": "node scripts/build-single.mjs",
-    "playtest": "node scripts/playtest.mjs"
+    "playtest": "node scripts/playtest.mjs",
+    "package": "node scripts/package.mjs"
   },
   "license": "UNLICENSED"
 }

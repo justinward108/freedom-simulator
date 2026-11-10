@@ -29,12 +29,27 @@ Open `index.html` in a browser. No build step or server is needed.
 
 `npm run build` writes a single self-contained file to `dist/freedom-simulator.html` for sharing.
 
+## Deploying to Netlify (freedom.poor.camp)
+
+Two ways, both serve the same files:
+
+- **Drag and drop:** run `npm run package`, then upload `dist/freedom-simulator-netlify.zip` in Netlify's deploy screen.
+- **Linked to GitHub:** connect this repo in Netlify. `netlify.toml` tells it to run the package script and serve `dist/site`, so every push to `main` deploys.
+
+Only the game ships: `index.html`, `styles.css`, `src/` and `assets/`. Tests, scripts and docs stay out.
+
+## Images
+
+Images go in `assets/` (`units/`, `structures/`, `regions/`, `ui/`; see `assets/README.md`). The package
+script includes everything there automatically.
+
 ## Working on it
 
 ```
 npm test            # engine tests (collision rules, transports, retreats, determinism)
 npm run playtest    # 300 AI-only games: win rates and game length, a rough balance check
 npm run build       # single-file build in dist/
+npm run package     # Netlify site in dist/site and a deploy zip
 ```
 
 | File | What it holds |
