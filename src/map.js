@@ -44,9 +44,9 @@
       southernafrica: { name: 'Southern Africa', label: 'S. Africa', x: 200, y: 745, value: 2, objective: true },
       middleeast: { name: 'Middle East', label: 'Middle East', x: 390, y: 455, value: 3, objective: true },
 
-      // Central and South Asia
+      // Central Asia and India
       centralasia: { name: 'Central Asia', label: 'Central Asia', x: 500, y: 290, value: 1 },
-      southasia: { name: 'South Asia', label: 'South Asia', x: 560, y: 545, value: 3, objective: true },
+      southasia: { name: 'India', label: 'India', x: 560, y: 545, value: 3, objective: true },
 
       // East Asia and the Pacific
       mongolia: { name: 'Mongolia', label: 'Mongolia', x: 630, y: 225, value: 1, objective: true },

@@ -51,7 +51,7 @@ npm run build       # single-file build in dist/
 ## Balance notes (AI vs AI, current numbers)
 
 Starting position: each power earns 13 points a turn. Russia holds continental Europe and Central
-Asia; China holds Mongolia, South Asia and Southeast Asia. Greater America starts with Sea Power
+Asia; China holds Mongolia, India and Southeast Asia. Greater America starts with Sea Power
 tier 1 and Russia with Coastal Missiles tier 1. Over 600 all-computer games: Greater America 33%,
 China 37%, Russia 30%.
 
